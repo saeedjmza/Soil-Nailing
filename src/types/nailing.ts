@@ -116,8 +116,37 @@ export interface ProjectMetadata {
   notes: string;
 }
 
+export interface SystemSpecsInputs {
+  wallHeight: number; // m (Excavation / trench height H)
+  wallBatterDeg: number; // deg (Face batter angle alpha from vertical)
+  backslopeDeg: number; // deg (Ground slope angle beta behind wall)
+  nailInclinationDeg: number; // deg (Nail drill inclination theta below horizontal)
+  nailLength: number; // m (Total nail length L)
+  surchargeKpa: number; // kPa (Surface surcharge qs)
+  soilUnitWeight: number; // kN/m3 (gamma_s)
+  soilCohesion: number; // kPa (c')
+  soilFrictionDeg: number; // deg (phi')
+}
+
+export interface PreliminaryEstimateResults {
+  Ka: number; // Active earth pressure coefficient
+  overburdenStressKpa: number; // gamma * H + qs
+  activePressureKpa: number; // Ka * (gamma * H + qs)
+  cohesionAdjustedPressureKpa: number; // max(0.2 * Ka * gamma * H, Ka*(gamma*H+qs) - 2*c*sqrt(Ka))
+  recommendedLengthMin: number; // 0.7 * H
+  recommendedLengthMax: number; // 1.0 * H
+  estimatedUnbondedLength: number; // ~ 0.35 * H
+  estimatedBondLength: number; // max(1.5, L - 0.35 * H)
+  tributaryArea: number; // Sh * Sv (m2)
+  estimatedTmaxUpper: number; // kN (0.75 * Ka * (gamma * H + qs) * Sh * Sv)
+  estimatedTmaxAdjusted: number; // kN (0.70 * cohesionAdjustedPressureKpa * Sh * Sv)
+  isLengthCompliant: boolean; // L >= 0.7 * H
+  isSpacingCompliant: boolean; // Sh * Sv <= 4.0 m2
+}
+
 export interface DesignState {
   metadata: ProjectMetadata;
+  system?: SystemSpecsInputs;
   tendon: TendonInputs;
   pullout: PulloutInputs;
   plate: BearingPlateInputs;
@@ -193,6 +222,7 @@ export interface HeadedStudsResults {
 }
 
 export interface CorrosionAssessmentResults {
+  isExemptTemporary: boolean;
   isPHSafe: boolean;
   isResistivitySafe: boolean;
   isChloridesSafe: boolean;

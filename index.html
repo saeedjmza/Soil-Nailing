@@ -2,20 +2,52 @@
 <html lang="fa" dir="rtl">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AASHTO & FHWA Soil Nail Design Suite</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover" />
+    <title>AASHTO &amp; FHWA Soil Nail Design Suite</title>
     <meta name="description" content="Comprehensive engineering suite for Soil Nail system design according to AASHTO LRFD (9th Ed, 2020) and FHWA-NHI-14-007 (GEC 7), featuring tendon sizing, bearing plate design, facing flexure & punching shear, corrosion protection classes, interactive CAD cross-sections, bilingual Persian/English UI, and PDF calculation booklet generation." />
-    <meta property="og:title" content="AASHTO & FHWA Soil Nail Design Suite" />
+    <meta property="og:title" content="AASHTO &amp; FHWA Soil Nail Design Suite" />
     <meta property="og:description" content="Comprehensive engineering suite for Soil Nail system design according to AASHTO LRFD (9th Ed, 2020) and FHWA-NHI-14-007 (GEC 7), featuring tendon sizing, bearing plate design, facing flexure & punching shear, corrosion protection classes, interactive CAD cross-sections, bilingual Persian/English UI, and PDF calculation booklet generation." />
     <meta property="og:type" content="website" />
+    <meta property="og:image" content="/pwa-512x512.png" />
     <meta name="twitter:card" content="summary_large_image" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <meta name="theme-color" content="#090d16" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="SoilNailLRFD" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/pwa-512x512.png" />
+    <link rel="alternate icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
   </head>
-  <body class="bg-slate-100 text-slate-800 antialiased selection:bg-blue-600 selection:text-white">
+  <body class="bg-slate-950 text-slate-100 antialiased selection:bg-amber-500 selection:text-slate-950">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // Native EXE local loopback server lifecycle keep-alive (when launched via standalone Windows .exe)
+      (function () {
+        try {
+          var isLocalLoopback =
+            (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost') &&
+            window.location.port !== '3000' &&
+            window.location.port !== '5173';
+          if (isLocalLoopback) {
+            setInterval(function () {
+              fetch('/api/ping', { method: 'GET', cache: 'no-store' }).catch(function () {});
+            }, 4000);
+            window.addEventListener('beforeunload', function () {
+              if (navigator.sendBeacon) {
+                navigator.sendBeacon('/api/shutdown');
+              } else {
+                fetch('/api/shutdown', { method: 'GET', keepalive: true }).catch(function () {});
+              }
+            });
+          }
+        } catch (e) {}
+      })();
+    </script>
   </body>
 </html>
-

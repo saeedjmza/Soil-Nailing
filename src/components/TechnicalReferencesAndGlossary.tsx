@@ -4,17 +4,13 @@
  */
 import React, { useState } from 'react';
 import { Language } from '../types/nailing';
-import { TRANSLATIONS } from '../utils/translations';
 import {
   BookOpen,
   Search,
-  ExternalLink,
   ChevronDown,
   ChevronUp,
   FileText,
   Bookmark,
-  Languages,
-  Check,
 } from 'lucide-react';
 
 interface Props {
@@ -256,15 +252,15 @@ export const TechnicalReferencesAndGlossary: React.FC<Props> = ({ lang }) => {
   );
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+    <div className="bg-slate-900/90 rounded-2xl shadow-xl border border-slate-800 overflow-hidden">
       {/* Header */}
-      <div className="px-5 py-4 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+      <div className="px-5 py-4 bg-slate-950/70 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
-            <BookOpen className="w-5 h-5 text-indigo-600" />
+          <h2 className="text-sm sm:text-base font-bold text-slate-100 flex items-center gap-2">
+            <BookOpen className="w-5 h-5 text-indigo-400" />
             <span>{isFa ? 'مبانی تئوری، مراجع استاندارد و واژه‌نامه فنی تخصصی' : 'Theoretical Fundamentals, References & Technical Glossary'}</span>
           </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <p className="text-xs text-slate-400 mt-0.5">
             {isFa
               ? 'مستندات مرجع آیین‌نامه‌ای AASHTO LRFD (2020) و FHWA-NHI-14-007 به همراه تعاریف و اصطلاحات دو زبانه'
               : 'Official references, design theory equations, and bilingual technical glossary'}
@@ -272,27 +268,30 @@ export const TechnicalReferencesAndGlossary: React.FC<Props> = ({ lang }) => {
         </div>
 
         {/* Tab Buttons */}
-        <div className="bg-white border border-slate-200 rounded-lg p-0.5 flex text-xs">
+        <div className="bg-slate-950 border border-slate-800 rounded-xl p-1 flex flex-wrap gap-1 text-xs">
           <button
+            type="button"
             onClick={() => setActiveTab('theory')}
-            className={`px-3 py-1.5 rounded-md font-semibold transition ${
-              activeTab === 'theory' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
+            className={`px-3 py-1.5 rounded-lg font-semibold transition cursor-pointer ${
+              activeTab === 'theory' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-300 hover:bg-slate-800'
             }`}
           >
             {isFa ? '۱. خلاصه مبانی تئوری' : '1. Theory Fundamentals'}
           </button>
           <button
+            type="button"
             onClick={() => setActiveTab('references')}
-            className={`px-3 py-1.5 rounded-md font-semibold transition ${
-              activeTab === 'references' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
+            className={`px-3 py-1.5 rounded-lg font-semibold transition cursor-pointer ${
+              activeTab === 'references' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-300 hover:bg-slate-800'
             }`}
           >
             {isFa ? '۲. مراجع اصلی استاندارد' : '2. Key References'}
           </button>
           <button
+            type="button"
             onClick={() => setActiveTab('glossary')}
-            className={`px-3 py-1.5 rounded-md font-semibold transition ${
-              activeTab === 'glossary' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
+            className={`px-3 py-1.5 rounded-lg font-semibold transition cursor-pointer ${
+              activeTab === 'glossary' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-300 hover:bg-slate-800'
             }`}
           >
             {isFa ? '۳. واژه‌نامه تخصصی (دو زبانه)' : '3. Bilingual Glossary'}
@@ -303,11 +302,11 @@ export const TechnicalReferencesAndGlossary: React.FC<Props> = ({ lang }) => {
       <div className="p-6">
         {/* TAB 1: THEORY FUNDAMENTALS */}
         {activeTab === 'theory' && (
-          <div className="space-y-6 text-xs text-slate-700 leading-relaxed">
+          <div className="space-y-6 text-xs text-slate-300 leading-relaxed">
             {/* Box 1: LRFD Methodology */}
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
-              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <Bookmark className="w-4 h-4 text-indigo-600" />
+            <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 space-y-2.5">
+              <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                <Bookmark className="w-4 h-4 text-indigo-400" />
                 <span>{isFa ? '۱. فلسفه طراحی بر اساس روش حالات حدی LRFD' : '1. LRFD Limit States Design Philosophy'}</span>
               </h3>
               <p>
@@ -315,10 +314,10 @@ export const TechnicalReferencesAndGlossary: React.FC<Props> = ({ lang }) => {
                   ? 'بر خلاف روش سنتی تنش مجاز (ASD) که تنها از یک ضریب اطمینان کلی استفاده می‌کرد، در استاندارد AASHTO LRFD (ویرایش نهم، ۲۰۲۰) عدم قطعیت بارها و مقاومت‌ها به طور جداگانه با ضرایب آماری فرموله می‌شوند:'
                   : 'Unlike traditional Allowable Stress Design (ASD), AASHTO LRFD accounts for statistical uncertainties in loads and materials separately:'}
               </p>
-              <div className="p-3 bg-white border border-slate-200 rounded-lg text-center font-mono text-xs font-bold text-slate-800">
-                φ · Rn ≥ Σ (γi · Qi) &nbsp;&implies;&nbsp; CDR = (φ · Rn) / (γ · Q) ≥ 1.00
+              <div className="p-3 bg-slate-900 border border-slate-700 rounded-xl text-center font-mono text-xs font-bold text-sky-300" dir="ltr">
+                φ · Rn ≥ Σ (γi · Qi) &nbsp;⟹&nbsp; CDR = (φ · Rn) / (γ · Q) ≥ 1.00
               </div>
-              <p className="text-[11px] text-slate-500">
+              <p className="text-[11px] text-slate-400">
                 {isFa
                   ? 'که در آن γi ضرایب بارگذاری، Qi بارهای اثرگذار، Rn مقاومت اسمی و φ ضریب کاهش مقاومت عضو است. ضریب بار فشار قائم خاک برای دیوارهای میخ‌کوبی شده بر اساس جدول AASHTO Table 3.4.1-2 برابر γp-EV = 1.35 است.'
                   : 'Where γi are load factors, Qi are load demands, Rn is nominal resistance, and φ is the resistance factor. The earth pressure load factor for soil nails per Table 3.4.1-2 is γp-EV = 1.35.'}
@@ -327,9 +326,9 @@ export const TechnicalReferencesAndGlossary: React.FC<Props> = ({ lang }) => {
 
             {/* Box 2: Internal Stability Limit States */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="p-4 rounded-xl border border-blue-200 bg-blue-50/50 space-y-2">
-                <h4 className="font-bold text-blue-950 text-xs flex items-center gap-1.5">
-                  <FileText className="w-4 h-4 text-blue-600" />
+              <div className="p-4 rounded-xl border border-sky-500/30 bg-sky-950/20 space-y-2">
+                <h4 className="font-bold text-sky-200 text-xs flex items-center gap-1.5">
+                  <FileText className="w-4 h-4 text-sky-400" />
                   <span>{isFa ? 'الف) تسلیم کششی میلگرد نیل (Tendon Tension)' : 'A) Nail Tendon Tensile Yield'}</span>
                 </h4>
                 <p>
@@ -337,19 +336,19 @@ export const TechnicalReferencesAndGlossary: React.FC<Props> = ({ lang }) => {
                     ? 'تسلیم کششی میلگرد فولادی بدون لحاظ سهم دوغاب سیمانی محاسبه می‌شود (AASHTO 11.12.6.1):'
                     : 'Nominal tensile strength is based strictly on steel rebar cross-section without grout contribution:'}
                 </p>
-                <div className="p-2 bg-white rounded font-mono font-bold text-center text-blue-900 border border-blue-200">
+                <div className="p-2.5 bg-slate-950 rounded-lg font-mono font-bold text-center text-sky-300 border border-slate-800" dir="ltr">
                   φT · RT ≥ γp-EV · Tmaxsn &nbsp;|&nbsp; RT = As · fy
                 </div>
-                <p className="text-[11px] text-blue-800">
+                <p className="text-[11px] text-slate-400">
                   {isFa
                     ? 'ضریب مقاومت φT بر اساس جدول 11.5.7-1 برای فولاد معمولی 0.75 و فولاد پرمقاومت 0.65 است.'
                     : 'Resistance factor φT is 0.75 for mild steel and 0.65 for high-strength steel.'}
                 </p>
               </div>
 
-              <div className="p-4 rounded-xl border border-teal-200 bg-teal-50/50 space-y-2">
-                <h4 className="font-bold text-teal-950 text-xs flex items-center gap-1.5">
-                  <FileText className="w-4 h-4 text-teal-600" />
+              <div className="p-4 rounded-xl border border-teal-500/30 bg-teal-950/20 space-y-2">
+                <h4 className="font-bold text-teal-200 text-xs flex items-center gap-1.5">
+                  <FileText className="w-4 h-4 text-teal-400" />
                   <span>{isFa ? 'ب) مقاومت بیرون‌کشیدگی دوغاب (Pullout Resistance)' : 'B) Grout-Ground Pullout Resistance'}</span>
                 </h4>
                 <p>
@@ -357,19 +356,19 @@ export const TechnicalReferencesAndGlossary: React.FC<Props> = ({ lang }) => {
                     ? 'انتقال بار از دوغاب به خاک در طول مؤثر نیل در پشت سطح گسیختگی بحرانی (AASHTO 11.12.5.2):'
                     : 'Load transfer from cement grout to ground along effective bond length Lp behind failure plane:'}
                 </p>
-                <div className="p-2 bg-white rounded font-mono font-bold text-center text-teal-900 border border-teal-200">
+                <div className="p-2.5 bg-slate-950 rounded-lg font-mono font-bold text-center text-teal-300 border border-slate-800" dir="ltr">
                   φPO · RPO ≥ γp-EV · Tmaxsn &nbsp;|&nbsp; RPO = π · DD · Lp · qu
                 </div>
-                <p className="text-[11px] text-teal-800">
+                <p className="text-[11px] text-slate-400">
                   {isFa
                     ? 'ضریب مقاومت φPO برابر 0.65 است. مقاومت پیوستگی qu از جداول تجربی یا آزمون کشش تعیین می‌شود.'
                     : 'Resistance factor φPO = 0.65. Bond strength qu comes from presumptive tables or pullout tests.'}
                 </p>
               </div>
 
-              <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/50 space-y-2">
-                <h4 className="font-bold text-amber-950 text-xs flex items-center gap-1.5">
-                  <FileText className="w-4 h-4 text-amber-600" />
+              <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-950/20 space-y-2">
+                <h4 className="font-bold text-amber-200 text-xs flex items-center gap-1.5">
+                  <FileText className="w-4 h-4 text-amber-400" />
                   <span>{isFa ? 'ج) خمش و برش پانچینگ پوسته شاتکریت' : 'C) Facing Flexure & Punching Shear'}</span>
                 </h4>
                 <p>
@@ -377,19 +376,19 @@ export const TechnicalReferencesAndGlossary: React.FC<Props> = ({ lang }) => {
                     ? 'پوسته شاتکریت تحت اثر نیروی سر نیل (T0) کنترل می‌شود (AASHTO 11.12.6.2.2):'
                     : 'Facing is checked against nail head tension T0 computed per Clouterre formula:'}
                 </p>
-                <div className="p-2 bg-white rounded font-mono font-bold text-center text-amber-900 border border-amber-200">
-                  RFF = 0.0038 · CF · Fy · F &nbsp;|&nbsp; VF = 330 √f\'c π Dc\' hc
+                <div className="p-2.5 bg-slate-950 rounded-lg font-mono font-bold text-center text-amber-300 border border-slate-800" dir="ltr">
+                  RFF = 0.0038 · CF · Fy · F &nbsp;|&nbsp; VF = 330 √f'c π Dc' hc
                 </div>
-                <p className="text-[11px] text-amber-800">
+                <p className="text-[11px] text-slate-400">
                   {isFa
                     ? 'ضریب تصحیح CF اثر قوس‌زدگی خاک را اعمال می‌کند و Dc\' = LPB + hi قطر قاعده مخروط گسیختگی پانچ ۴۵ درجه است.'
                     : 'CF factor accounts for soil arching. Dc\' is the critical punching shear cone diameter.'}
                 </p>
               </div>
 
-              <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/50 space-y-2">
-                <h4 className="font-bold text-emerald-950 text-xs flex items-center gap-1.5">
-                  <FileText className="w-4 h-4 text-emerald-600" />
+              <div className="p-4 rounded-xl border border-emerald-500/30 bg-emerald-950/20 space-y-2">
+                <h4 className="font-bold text-emerald-200 text-xs flex items-center gap-1.5">
+                  <FileText className="w-4 h-4 text-emerald-400" />
                   <span>{isFa ? 'د) حفاظت خوردگی نیل‌های دائم (Corrosion Protection)' : 'D) Permanent Corrosion Encapsulation'}</span>
                 </h4>
                 <p>
@@ -397,9 +396,9 @@ export const TechnicalReferencesAndGlossary: React.FC<Props> = ({ lang }) => {
                     ? 'ارزیابی بر اساس مشخصات الکتروشیمیایی خاک (AASHTO 11.12.8 & FHWA GEC 7):'
                     : 'Evaluation based on electrochemical laboratory testing of site soil:'}
                 </p>
-                <div className="p-2 bg-white rounded text-[11px] text-emerald-900 border border-emerald-200 space-y-1">
-                  <div>• خاک غیرتهاجمی: pH بین ۵ تا ۱۰، مقاومت ویژه ≥ ۳۰۰۰ Ω·cm، کلرید ≤ ۱۰۰ ppm، سولفات ≤ ۲۰۰ ppm</div>
-                  <div>• خاک تهاجمی: نقض هر یک از شرایط فوق &larr; الزام محصورسازی کامل با غلاف موج‌دار (کلاس A)</div>
+                <div className="p-2.5 bg-slate-950 rounded-lg text-[11px] text-emerald-200 border border-slate-800 space-y-1">
+                  <div>• {isFa ? 'خاک غیرتهاجمی: pH بین ۵ تا ۱۰، مقاومت ویژه ≥ ۳۰۰۰ Ω·cm، کلرید ≤ ۱۰۰ ppm، سولفات ≤ ۲۰۰ ppm' : 'Non-Aggressive: 5 ≤ pH ≤ 10, Resistivity ≥ 3000 Ω·cm, Cl ≤ 100 ppm, SO4 ≤ 200 ppm'}</div>
+                  <div>• {isFa ? 'خاک تهاجمی: نقض هر یک از شرایط فوق ← الزام محصورسازی کامل با غلاف موج‌دار (کلاس A)' : 'Aggressive: Violation of any threshold → Class A Corrugated Duct Encapsulation'}</div>
                 </div>
               </div>
             </div>
@@ -409,7 +408,7 @@ export const TechnicalReferencesAndGlossary: React.FC<Props> = ({ lang }) => {
         {/* TAB 2: KEY REFERENCES */}
         {activeTab === 'references' && (
           <div className="space-y-4">
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-400">
               {isFa
                 ? 'لیست مراجع معتبر فنی و استانداردهای طراحی مورد استفاده در محاسبات نرم‌افزار. برای مشاهده بندها و جزئیات روی هر مرجع کلیک کنید:'
                 : 'Click any reference to expand detailed code clauses, chapter references, and design scope:'}
@@ -421,46 +420,47 @@ export const TechnicalReferencesAndGlossary: React.FC<Props> = ({ lang }) => {
                 return (
                   <div
                     key={ref.id}
-                    className="border border-slate-200 rounded-xl overflow-hidden transition-all bg-white"
+                    className="border border-slate-800 rounded-xl overflow-hidden transition-all bg-slate-950/70"
                   >
-                    <div
+                    <button
+                      type="button"
                       onClick={() => setExpandedRef(isExpanded ? null : ref.id)}
-                      className="p-4 bg-slate-50/70 hover:bg-slate-100/70 cursor-pointer flex items-center justify-between gap-3"
+                      className="w-full p-4 bg-slate-950/80 hover:bg-slate-900 cursor-pointer flex items-center justify-between gap-3 text-start"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs shrink-0">
+                        <div className="w-10 h-8 rounded-lg bg-indigo-500/20 border border-indigo-500/35 text-indigo-300 flex items-center justify-center font-bold font-mono text-xs shrink-0 tabular-nums">
                           {ref.year}
                         </div>
                         <div>
-                          <div className="font-bold text-xs text-slate-900">{ref.title}</div>
-                          <div className="text-[11px] text-slate-500">
-                            {ref.publisher} — <span className="font-mono">{ref.codeNumber}</span>
+                          <div className="font-bold text-xs text-slate-100">{ref.title}</div>
+                          <div className="text-[11px] text-slate-400">
+                            {ref.publisher} — <span className="font-mono text-slate-300">{ref.codeNumber}</span>
                           </div>
                         </div>
                       </div>
 
-                      <div className="text-slate-400">
+                      <div className="text-slate-400 shrink-0">
                         {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                       </div>
-                    </div>
+                    </button>
 
                     {isExpanded && (
-                      <div className="p-4 border-t border-slate-200 bg-white space-y-3 text-xs">
+                      <div className="p-4 border-t border-slate-800 bg-slate-900/50 space-y-3 text-xs">
                         <div>
-                          <span className="font-bold text-slate-800">{isFa ? 'دامنه کاربرد و محتوا:' : 'Scope & Overview:'}</span>
-                          <p className="text-slate-600 mt-0.5">{isFa ? ref.scopeFa : ref.scopeEn}</p>
+                          <span className="font-bold text-slate-200">{isFa ? 'دامنه کاربرد و محتوا:' : 'Scope & Overview:'}</span>
+                          <p className="text-slate-300 mt-1">{isFa ? ref.scopeFa : ref.scopeEn}</p>
                         </div>
 
                         <div>
-                          <span className="font-bold text-slate-800">{isFa ? 'بندها و فصل‌های کلیدی:' : 'Key Sections:'}</span>
-                          <ul className="list-disc list-inside mt-1 space-y-1 text-slate-600">
+                          <span className="font-bold text-slate-200">{isFa ? 'بندها و فصل‌های کلیدی:' : 'Key Sections:'}</span>
+                          <ul className="list-disc list-inside mt-1 space-y-1 text-slate-300" dir="ltr">
                             {ref.keySections.map((sec, i) => (
                               <li key={i} className="font-mono text-[11px]">{sec}</li>
                             ))}
                           </ul>
                         </div>
 
-                        <div className="p-2.5 rounded-lg bg-indigo-50/60 text-indigo-900 border border-indigo-100">
+                        <div className="p-3 rounded-xl bg-indigo-950/30 text-indigo-200 border border-indigo-500/25">
                           <strong>{isFa ? 'کاربرد در این اپلیکیشن:' : 'Relevance to this App:'} </strong>
                           <span>{isFa ? ref.relevanceFa : ref.relevanceEn}</span>
                         </div>
@@ -476,26 +476,26 @@ export const TechnicalReferencesAndGlossary: React.FC<Props> = ({ lang }) => {
         {/* TAB 3: BILINGUAL GLOSSARY */}
         {activeTab === 'glossary' && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between gap-3">
-              <div className="relative flex-1 max-w-md">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="relative flex-1 min-w-[220px] max-w-md">
                 <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400 pointer-events-none" />
                 <input
                   type="text"
                   placeholder={isFa ? 'جستجو در اصطلاحات فارسی یا انگلیسی...' : 'Search English or Persian terms...'}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-xs"
+                  className="w-full pl-9 pr-3 py-2 border border-slate-700 bg-slate-950 text-slate-100 rounded-xl text-xs placeholder:text-slate-500 focus:outline-none focus:border-indigo-500"
                 />
               </div>
 
-              <div className="text-xs text-slate-500 font-medium">
+              <div className="text-xs text-slate-400 font-medium tabular-nums">
                 {isFa ? `تعداد اصطلاحات: ${filteredGlossary.length}` : `Terms: ${filteredGlossary.length}`}
               </div>
             </div>
 
-            <div className="border border-slate-200 rounded-xl overflow-hidden max-h-[500px] overflow-y-auto">
-              <table className="w-full text-right border-collapse text-xs">
-                <thead className="bg-slate-100 font-bold text-slate-700 sticky top-0 border-b border-slate-200">
+            <div className="border border-slate-800 rounded-xl overflow-hidden max-h-[500px] overflow-y-auto bg-slate-950/60">
+              <table className={`w-full border-collapse text-xs ${isFa ? 'text-right' : 'text-left'}`}>
+                <thead className="bg-slate-900 font-bold text-slate-200 sticky top-0 border-b border-slate-800">
                   <tr>
                     <th className="p-3 w-1/4">{isFa ? 'اصطلاح انگلیسی (English)' : 'English Term'}</th>
                     <th className="p-3 w-1/4">{isFa ? 'معادل فارسی (Persian)' : 'Persian Equivalent'}</th>
@@ -503,15 +503,15 @@ export const TechnicalReferencesAndGlossary: React.FC<Props> = ({ lang }) => {
                     <th className="p-3 w-1/10 text-center">{isFa ? 'مرجع' : 'Ref'}</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-800/80">
                   {filteredGlossary.map((g, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50 transition">
-                      <td className="p-3 font-semibold text-blue-900 font-mono text-[11px]">{g.en}</td>
-                      <td className="p-3 font-bold text-slate-800">{g.fa}</td>
-                      <td className="p-3 text-slate-600 leading-normal">
+                    <tr key={idx} className="hover:bg-slate-900/80 transition">
+                      <td className="p-3 font-semibold text-sky-300 font-mono text-[11px]" dir="ltr">{g.en}</td>
+                      <td className="p-3 font-bold text-slate-100">{g.fa}</td>
+                      <td className="p-3 text-slate-300 leading-normal">
                         {isFa ? g.defFa : g.defEn}
                       </td>
-                      <td className="p-3 text-center font-mono text-[10px] text-slate-400 whitespace-nowrap">
+                      <td className="p-3 text-center font-mono text-[10px] text-slate-400 whitespace-nowrap" dir="ltr">
                         {g.reference}
                       </td>
                     </tr>

@@ -51,7 +51,7 @@ export const TRANSLATIONS = {
     reset: 'بازنشانی',
     units: 'واحدها',
 
-    // Section 1: Tendon
+    // Section 3: Tendon
     secTendonTitle: 'الف) کنترل ظرفیت کششی میلگرد نیل (Tendon Tensile Resistance)',
     secTendonDesc: 'کنترل مقاومت کششی اسمی و طرح میلگرد بدون احتساب دوغاب سیمانی مطابق بند AASHTO 11.12.6.1',
     paramTmax: 'حداکثر نیروی کششی نیل (Tmax)',
@@ -72,7 +72,7 @@ export const TRANSLATIONS = {
     tendonDCR: 'نسبت تقاضا به ظرفیت (DCR)',
     tendonCDR: 'نسبت ظرفیت به تقاضا (CDR)',
 
-    // Section 2: Pullout
+    // Section 4: Pullout
     secPulloutTitle: 'ب) کنترل ظرفیت بیرون‌کشیدگی نیل از زمین (Grout-Ground Pullout Resistance)',
     secPulloutDesc: 'کنترل مقاومت پیوستگی دوغاب با خاک در طول مؤثر نیل در پشت سطح گسیختگی بحرانی مطابق بند AASHTO 11.12.5.2',
     paramDrillholeDia: 'قطر گمانه حفاری (DD)',
@@ -88,7 +88,7 @@ export const TRANSLATIONS = {
     pulloutFactoredRes: 'ظرفیت طراحی بیرون‌کشیدگی (φPO · RPO)',
     presumptiveBondPicker: 'انتخاب مقاومت پیوستگی از جداول استاندارد AASHTO / FHWA',
 
-    // Section 3: Bearing Plate
+    // Section 5: Bearing Plate
     secPlateTitle: 'ج) طرح صفحه سر نیل (Nail Head Bearing Plate Design)',
     secPlateDesc: 'کنترل تنش اتکایی روی بتن/شاتکریت و خمش ورق فولادی تحت نیروی سر نیل (T0) مطابق نشریه FHWA NHI-14-007',
     paramNailHeadLoad: 'نیروی سر میخ (T0)',
@@ -108,7 +108,7 @@ export const TRANSLATIONS = {
     plateBendingStress: 'تنش خمشی واقعی صفحه (σ = M·c/I)',
     plateBendingAllow: 'تنش خمشی مجاز صفحه (Fb = 0.75 fy-p)',
 
-    // Section 4: Facing
+    // Section 6: Facing
     secFacingTitle: 'د) طراحی و کنترل پوشش‌های سطحی (Facing Design: Flexure & Punching)',
     secFacingDesc: 'بررسی مقاومت خمشی پوشش شاتکریت موقت و بتن دائم و برش پانچینگ پیرامون پلیت بر مبنای AASHTO 11.12.6.2.2',
     spacingTitle: 'فواصل چیدمان نیل‌ها روی دیواره',
@@ -144,8 +144,8 @@ export const TRANSLATIONS = {
     studsCDR: 'نسبت CDR کنترل کشش گل‌میخ (φFH · RFH / γ · T0)',
 
     // Section 5: Corrosion
-    secCorrosionTitle: 'هـ) ارزیابی محیط شیمیایی و سیستم حفاظت در برابر خوردگی نیل‌های دائم',
-    secCorrosionDesc: 'طبقه‌بندی پتانسیل تهاجمی بودن خاک و الزامات محصورسازی کالس A یا پوشش‌های کالس B بر مبنای AASHTO 11.12.8',
+    secCorrosionTitle: 'هـ) ارزیابی و طراحی سیستم حفاظت در برابر خوردگی نیل‌ها',
+    secCorrosionDesc: 'تفکیک نیل‌های موقت (معاف از حفاظت و نصب بدون غلاف) و نیل‌های دائم (بررسی شیمیایی خاک و کلاس A/B بر مبنای AASHTO 11.12.8)',
     soilElectroTitle: 'نتایج آزمایش‌های الکتروشیمیایی خاک گمانه‌ها',
     paramSoilPH: 'شاخص اسیدیته خاک (pH)',
     paramSoilResistivity: 'مقاومت ویژه الکتریکی خاک (Resistivity)',
@@ -201,6 +201,10 @@ export const TRANSLATIONS = {
     modularView: 'نمای ماژولار (ویندوز)',
     designedSystemSpecTitle: 'مشخصات سیستم نهایی نیلینگ طراحی شده',
     designedSystemSpecDesc: 'خلاصه فنی مشخصات اجرایی سازه نگهبان میخ‌کوبی شده جهت درج در نقشه‌ها و دفترچه محاسبات',
+
+    // Section System Specs
+    secSystemTitle: 'ب) مشخصات سیستم میخ‌کوبی (Nailing)، ابعاد شبکه و ژئوتکنیک اولیه',
+    secSystemDesc: 'تعیین ارتفاع ترانشه، ابعاد شبکه نیل‌ها، طول کل و مشخصات اولیه خاک به همراه راهنمای تخمین آیین‌نامه‌ای FHWA-NHI-14-007',
   },
   en: {
     appTitle: 'Soil Nail Wall Design & Stability Verification Suite',
@@ -249,7 +253,7 @@ export const TRANSLATIONS = {
     reset: 'Reset',
     units: 'Units',
 
-    // Section 1: Tendon
+    // Section 3: Tendon
     secTendonTitle: 'A) Tendon Tensile Resistance Verification (AASHTO 11.12.6.1)',
     secTendonDesc: 'Verification of nominal and factored tensile resistance of nail rebar without grout contribution.',
     paramTmax: 'Maximum Nail Tensile Force (Tmax)',
@@ -270,7 +274,7 @@ export const TRANSLATIONS = {
     tendonDCR: 'Demand-Capacity Ratio (DCR)',
     tendonCDR: 'Capacity-Demand Ratio (CDR)',
 
-    // Section 2: Pullout
+    // Section 4: Pullout
     secPulloutTitle: 'B) Grout-Ground Pullout Resistance (AASHTO 11.12.5.2)',
     secPulloutDesc: 'Verification of bond resistance along effective nail length behind critical failure surface.',
     paramDrillholeDia: 'Drillhole Diameter (DD)',
@@ -286,7 +290,7 @@ export const TRANSLATIONS = {
     pulloutFactoredRes: 'Factored Pullout Resistance (φPO · RPO)',
     presumptiveBondPicker: 'Select Bond Strength from AASHTO / FHWA Tables',
 
-    // Section 3: Bearing Plate
+    // Section 5: Bearing Plate
     secPlateTitle: 'C) Nail Head Bearing Plate Design (FHWA NHI-14-007)',
     secPlateDesc: 'Evaluation of concrete bearing stress and steel plate cantilever bending under nail head tension (T0).',
     paramNailHeadLoad: 'Nail Head Tension (T0)',
@@ -306,7 +310,7 @@ export const TRANSLATIONS = {
     plateBendingStress: 'Actual Plate Bending Stress (σ = M·c/I)',
     plateBendingAllow: 'Allowable Bending Stress (Fb = 0.75 fy-p)',
 
-    // Section 4: Facing
+    // Section 6: Facing
     secFacingTitle: 'D) Facing Design: Flexure & Punching Shear (AASHTO 11.12.6.2.2)',
     secFacingDesc: 'Verification of initial shotcrete & final concrete facing flexural and punching shear resistances.',
     spacingTitle: 'Nail Wall Grid Spacing',
@@ -342,8 +346,8 @@ export const TRANSLATIONS = {
     studsCDR: 'Headed Studs CDR (φFH · RFH / γ · T0)',
 
     // Section 5: Corrosion
-    secCorrosionTitle: 'E) Soil Electrochemical Corrosiveness & Permanent Protection',
-    secCorrosionDesc: 'Evaluation of soil aggressiveness criteria and detailing of Class A encapsulation or Class B coating.',
+    secCorrosionTitle: 'E) Soil Nail Corrosion Protection (Temporary vs. Permanent)',
+    secCorrosionDesc: 'Temporary nails (exempt, bare rebar in grout) vs. Permanent nails (soil aggressiveness & Class A/B detailing per AASHTO 11.12.8)',
     soilElectroTitle: 'Soil Chemical Laboratory Test Results',
     paramSoilPH: 'Soil pH Indicator',
     paramSoilResistivity: 'Soil Electrical Resistivity (ρ)',
@@ -399,5 +403,9 @@ export const TRANSLATIONS = {
     modularView: 'Modular Workflow (Windows Desktop)',
     designedSystemSpecTitle: 'Final Designed Soil Nailing System Specifications',
     designedSystemSpecDesc: 'Executive summary schedule of designed soil nail wall components for drawings and calculations',
+
+    // Section System Specs
+    secSystemTitle: 'B) Nailing System Specifications, Grid Layout & Preliminary Soil',
+    secSystemDesc: 'Define trench height, nail grid spacing, total length, and preliminary soil parameters with FHWA code sizing guide',
   },
 };

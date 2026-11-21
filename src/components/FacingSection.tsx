@@ -1,7 +1,7 @@
 /**
  * Facing Design Section: Initial Shotcrete & Permanent Facing Flexure, Punching Shear & Headed Studs (AASHTO 11.12.6.2)
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   FacingInputs,
   FacingFlexureResults,
@@ -11,7 +11,7 @@ import {
 } from '../types/nailing';
 import { STANDARD_MESH_OPTIONS } from '../constants/standardsData';
 import { TRANSLATIONS } from '../utils/translations';
-import { HelpCircle, Check, AlertTriangle, Layers, Grid, Shield, Info, Sliders, Calculator, Edit3 } from 'lucide-react';
+import { HelpCircle, Check, AlertTriangle, Grid, Info, Sliders, Calculator, Edit3 } from 'lucide-react';
 
 interface Props {
   inputs: FacingInputs;
@@ -21,7 +21,10 @@ interface Props {
   permPunching: FacingPunchingResults;
   headedStuds: HeadedStudsResults;
   T0: number;
+  isTemporarySystem?: boolean;
+  requestedSubTab?: { tab: 'temp' | 'perm' | 'studs'; seq: number } | null;
   onChange: (inputs: FacingInputs) => void;
+  onGoToSystemSpecs?: () => void;
   lang: Language;
   onOpenGuidance: () => void;
 }
@@ -34,13 +37,22 @@ export const FacingSection: React.FC<Props> = ({
   permPunching,
   headedStuds,
   T0,
+  isTemporarySystem = false,
+  requestedSubTab = null,
   onChange,
+  onGoToSystemSpecs,
   lang,
   onOpenGuidance,
 }) => {
   const isFa = lang === 'fa';
   const t = TRANSLATIONS[lang];
   const [activeFacingSubTab, setActiveFacingSubTab] = useState<'temp' | 'perm' | 'studs'>('temp');
+
+  useEffect(() => {
+    if (requestedSubTab) {
+      setActiveFacingSubTab(requestedSubTab.tab);
+    }
+  }, [requestedSubTab]);
 
   // Manual Custom Rebar Mode vs Standard Mesh Selector states
   const [tempMode, setTempMode] = useState<'standard' | 'manual'>('standard');
@@ -50,6 +62,16 @@ export const FacingSection: React.FC<Props> = ({
   const [permMode, setPermMode] = useState<'standard' | 'manual'>('standard');
   const [permManualDia, setPermManualDia] = useState<number>(inputs.permMesh.meshDiameter || 10);
   const [permManualSpacing, setPermManualSpacing] = useState<number>(inputs.permMesh.meshSpacing || 150);
+
+  useEffect(() => {
+    if (inputs.tempMesh.meshDiameter) setTempManualDia(inputs.tempMesh.meshDiameter);
+    if (inputs.tempMesh.meshSpacing) setTempManualSpacing(inputs.tempMesh.meshSpacing);
+  }, [inputs.tempMesh.meshDiameter, inputs.tempMesh.meshSpacing]);
+
+  useEffect(() => {
+    if (inputs.permMesh.meshDiameter) setPermManualDia(inputs.permMesh.meshDiameter);
+    if (inputs.permMesh.meshSpacing) setPermManualSpacing(inputs.permMesh.meshSpacing);
+  }, [inputs.permMesh.meshDiameter, inputs.permMesh.meshSpacing]);
 
   // Helper to calculate area per linear meter: As = (1000 / s) * (pi * d^2 / 4)
   const calcRebarArea = (dia: number, spacing: number): number => {
@@ -136,39 +158,68 @@ export const FacingSection: React.FC<Props> = ({
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+    <div className="bg-slate-900/90 rounded-2xl shadow-xl border border-slate-800 overflow-hidden">
       {/* Section Header */}
-      <div className="px-5 py-4 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+      <div className="px-5 py-4 bg-slate-950/70 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
-            <span className="w-6 h-6 rounded-md bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-black">
+          <h2 className="text-sm sm:text-base font-bold text-slate-100 flex items-center gap-2">
+            <span className="w-6 h-6 rounded-lg bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 flex items-center justify-center text-xs font-black">
               4
             </span>
             <span>{t.secFacingTitle}</span>
           </h2>
-          <p className="text-xs text-slate-500 mt-0.5">{t.secFacingDesc}</p>
+          <p className="text-xs text-slate-400 mt-0.5">{t.secFacingDesc}</p>
         </div>
 
         <button
+          type="button"
           onClick={onOpenGuidance}
-          className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center gap-1 font-medium bg-indigo-50 px-2.5 py-1 rounded-md border border-indigo-200"
+          className="text-xs text-indigo-300 hover:text-white flex items-center gap-1.5 font-medium bg-indigo-500/15 hover:bg-indigo-500/25 px-3 py-1.5 rounded-lg border border-indigo-500/35 transition cursor-pointer whitespace-nowrap"
         >
           <HelpCircle className="w-3.5 h-3.5" />
           <span>{t.parameterGuidance}</span>
         </button>
       </div>
 
+      {/* Temporary System Notice Banner */}
+      {isTemporarySystem && (
+        <div className="px-5 py-3 bg-amber-950/35 border-b border-amber-500/30 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="flex items-start gap-2.5 text-amber-200">
+            <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <span className="font-bold text-amber-100">
+                {isFa ? 'سیستم نیلینگ موقت فعال است (Temporary System):' : 'Temporary Nailing System Active:'}
+              </span>{' '}
+              <span>
+                {isFa
+                  ? 'بر اساس انتخاب شما در سربرگ مشخصات سیستم نیلینگ، این سازه موقت بوده و نیاز به طراحی رویه پوشش دائم و گل‌میخ‌های سر نیل ندارد؛ تنها پوشش شاتکریت موقت کنترل می‌شود.'
+                  : 'Per your selection in Nailing System Specs, permanent concrete facing and headed studs are not required; only temporary shotcrete facing is checked.'}
+              </span>
+            </div>
+          </div>
+          {onGoToSystemSpecs && (
+            <button
+              type="button"
+              onClick={onGoToSystemSpecs}
+              className="px-3 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 text-[11px] font-bold transition cursor-pointer shrink-0"
+            >
+              {isFa ? 'تغییر در مشخصات سیستم نیلینگ' : 'Change in System Specs'}
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Grid Spacing Inputs Strip */}
-      <div className="px-5 py-3 bg-indigo-50/50 border-b border-indigo-100 flex flex-wrap items-center justify-between gap-4 text-xs">
-        <div className="flex items-center gap-2 text-indigo-950 font-bold">
-          <Grid className="w-4 h-4 text-indigo-600" />
+      <div className="px-5 py-3 bg-indigo-950/30 border-b border-slate-800 flex flex-wrap items-center justify-between gap-4 text-xs">
+        <div className="flex items-center gap-2 text-indigo-200 font-bold">
+          <Grid className="w-4 h-4 text-indigo-400" />
           <span>{t.spacingTitle}:</span>
         </div>
 
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-2">
-            <label className="text-slate-700 font-medium">{t.paramSh}:</label>
-            <div className="flex rounded-lg border border-slate-300 overflow-hidden bg-white w-32 shadow-2xs shrink-0" dir="ltr">
+            <label className="text-slate-300 font-medium">{t.paramSh}:</label>
+            <div className="flex rounded-xl border border-slate-700 overflow-hidden bg-slate-950 w-32 shrink-0 focus-within:ring-2 focus-within:ring-indigo-500/50 focus-within:border-indigo-500" dir="ltr">
               <input
                 type="number"
                 dir="ltr"
@@ -177,17 +228,17 @@ export const FacingSection: React.FC<Props> = ({
                 max="3.5"
                 value={inputs.Sh}
                 onChange={(e) => onChange({ ...inputs, Sh: parseFloat(e.target.value) || 2.0 })}
-                className="w-full px-2.5 py-1 text-xs font-mono text-slate-800 text-left bg-transparent focus:outline-none"
+                className="w-full px-2.5 py-1.5 text-xs font-mono text-slate-100 text-left bg-transparent focus:outline-none tabular-nums"
               />
-              <span className="bg-slate-100 border-l border-slate-200 px-2.5 py-1 text-xs text-slate-600 font-bold select-none min-w-[32px] flex items-center justify-center">
+              <span className="bg-slate-900 border-l border-slate-800 px-2.5 py-1.5 text-xs text-slate-400 font-bold select-none min-w-[32px] flex items-center justify-center">
                 m
               </span>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <label className="text-slate-700 font-medium">{t.paramSv}:</label>
-            <div className="flex rounded-lg border border-slate-300 overflow-hidden bg-white w-32 shadow-2xs shrink-0" dir="ltr">
+            <label className="text-slate-300 font-medium">{t.paramSv}:</label>
+            <div className="flex rounded-xl border border-slate-700 overflow-hidden bg-slate-950 w-32 shrink-0 focus-within:ring-2 focus-within:ring-indigo-500/50 focus-within:border-indigo-500" dir="ltr">
               <input
                 type="number"
                 dir="ltr"
@@ -196,36 +247,39 @@ export const FacingSection: React.FC<Props> = ({
                 max="3.5"
                 value={inputs.Sv}
                 onChange={(e) => onChange({ ...inputs, Sv: parseFloat(e.target.value) || 2.0 })}
-                className="w-full px-2.5 py-1 text-xs font-mono text-slate-800 text-left bg-transparent focus:outline-none"
+                className="w-full px-2.5 py-1.5 text-xs font-mono text-slate-100 text-left bg-transparent focus:outline-none tabular-nums"
               />
-              <span className="bg-slate-100 border-l border-slate-200 px-2.5 py-1 text-xs text-slate-600 font-bold select-none min-w-[32px] flex items-center justify-center">
+              <span className="bg-slate-900 border-l border-slate-800 px-2.5 py-1.5 text-xs text-slate-400 font-bold select-none min-w-[32px] flex items-center justify-center">
                 m
               </span>
             </div>
           </div>
 
-          <div className="text-[11px] text-indigo-900 bg-indigo-100/80 px-2.5 py-1 rounded font-mono" dir="ltr">
+          <div className="text-[11px] text-sky-200 bg-sky-500/15 border border-sky-500/30 px-3 py-1 rounded-lg font-mono tabular-nums" dir="ltr">
             T0 = {T0} kN [Smax = {Math.max(inputs.Sh, inputs.Sv)} m]
           </div>
         </div>
       </div>
 
-      {/* Sub Tabs: Temporary / Permanent / Headed Studs */}
-      <div className="px-5 pt-3 border-b border-slate-200 flex gap-4 text-xs font-semibold">
+      {/* Sub Tabs: Temporary / Permanent / Headed Studs (Zero Horizontal Scroll) */}
+      <div className="px-4 sm:px-5 py-2.5 bg-slate-950/40 border-b border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs font-semibold">
         <button
+          type="button"
           onClick={() => setActiveFacingSubTab('temp')}
-          className={`pb-2.5 border-b-2 transition-colors flex items-center gap-1.5 ${
+          className={`px-3 py-2 rounded-xl border transition-all flex items-center justify-between gap-2 cursor-pointer ${
             activeFacingSubTab === 'temp'
-              ? 'border-indigo-600 text-indigo-600'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
+              ? 'bg-indigo-500/15 border-indigo-400/70 text-indigo-200 font-bold shadow-xs'
+              : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
           }`}
         >
-          <span>{t.tempFacingTitle}</span>
+          <span className="truncate">
+            {isFa ? '۱. پوشش موقت (شاتکریت اولیه)' : '1. Initial / Temporary Facing'}
+          </span>
           <span
-            className={`text-[10px] px-1.5 py-0.2 rounded font-mono ${
+            className={`text-[10px] px-1.5 py-0.5 rounded font-mono border shrink-0 ${
               tempFlexure.isPassed && tempPunching.isPassed
-                ? 'bg-emerald-100 text-emerald-800'
-                : 'bg-rose-100 text-rose-800'
+                ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                : 'bg-rose-500/15 text-rose-300 border-rose-500/30'
             }`}
           >
             {tempFlexure.isPassed && tempPunching.isPassed ? 'OK' : 'NG'}
@@ -233,41 +287,65 @@ export const FacingSection: React.FC<Props> = ({
         </button>
 
         <button
+          type="button"
           onClick={() => setActiveFacingSubTab('perm')}
-          className={`pb-2.5 border-b-2 transition-colors flex items-center gap-1.5 ${
+          className={`px-3 py-2 rounded-xl border transition-all flex items-center justify-between gap-2 cursor-pointer ${
             activeFacingSubTab === 'perm'
-              ? 'border-indigo-600 text-indigo-600'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
+              ? 'bg-indigo-500/15 border-indigo-400/70 text-indigo-200 font-bold shadow-xs'
+              : isTemporarySystem
+              ? 'bg-slate-900/40 border-slate-800/70 text-slate-500 hover:text-slate-300'
+              : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
           }`}
         >
-          <span>{t.permFacingTitle}</span>
-          <span
-            className={`text-[10px] px-1.5 py-0.2 rounded font-mono ${
-              permFlexure.isPassed && permPunching.isPassed
-                ? 'bg-emerald-100 text-emerald-800'
-                : 'bg-rose-100 text-rose-800'
-            }`}
-          >
-            {permFlexure.isPassed && permPunching.isPassed ? 'OK' : 'NG'}
+          <span className="truncate">
+            {isFa ? '۲. پوشش دائم (بتن نهایی)' : '2. Final / Permanent Facing'}
           </span>
+          {isTemporarySystem ? (
+            <span className="text-[10px] px-1.5 py-0.5 rounded font-bold border bg-slate-800 text-slate-400 border-slate-700 shrink-0">
+              {isFa ? 'غیرالزامی (موقت)' : 'N/A (Temp)'}
+            </span>
+          ) : (
+            <span
+              className={`text-[10px] px-1.5 py-0.5 rounded font-mono border shrink-0 ${
+                permFlexure.isPassed && permPunching.isPassed
+                  ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                  : 'bg-rose-500/15 text-rose-300 border-rose-500/30'
+              }`}
+            >
+              {permFlexure.isPassed && permPunching.isPassed ? 'OK' : 'NG'}
+            </span>
+          )}
         </button>
 
         <button
+          type="button"
           onClick={() => setActiveFacingSubTab('studs')}
-          className={`pb-2.5 border-b-2 transition-colors flex items-center gap-1.5 ${
+          className={`px-3 py-2 rounded-xl border transition-all flex items-center justify-between gap-2 cursor-pointer ${
             activeFacingSubTab === 'studs'
-              ? 'border-indigo-600 text-indigo-600'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
+              ? 'bg-indigo-500/15 border-indigo-400/70 text-indigo-200 font-bold shadow-xs'
+              : isTemporarySystem
+              ? 'bg-slate-900/40 border-slate-800/70 text-slate-500 hover:text-slate-300'
+              : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
           }`}
         >
-          <span>{t.headedStudsTitle}</span>
-          <span
-            className={`text-[10px] px-1.5 py-0.2 rounded font-mono ${
-              headedStuds.isPassed ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
-            }`}
-          >
-            {headedStuds.isPassed ? 'OK' : 'NG'}
+          <span className="truncate">
+            {isFa ? '۳. کشش گل‌میخ‌های سر نیل دائم' : '3. Headed Studs Tension'}
           </span>
+          {isTemporarySystem ? (
+            <span className="text-[10px] px-1.5 py-0.5 rounded font-bold border bg-slate-800 text-slate-400 border-slate-700 shrink-0">
+              {isFa ? 'غیرالزامی (موقت)' : 'N/A (Temp)'}
+            </span>
+          ) : (
+            <span
+              className={`text-[10px] px-1.5 py-0.5 rounded font-mono border shrink-0 ${
+                headedStuds.isPassed
+                  ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                  : 'bg-rose-500/15 text-rose-300 border-rose-500/30'
+              }`}
+            >
+              {headedStuds.isPassed ? 'OK' : 'NG'}
+            </span>
+          )}
         </button>
       </div>
 
@@ -279,10 +357,10 @@ export const FacingSection: React.FC<Props> = ({
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {/* Thickness h_temp */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                     {t.paramFacingThickness}
                   </label>
-                  <div className="flex rounded-lg border border-slate-300 overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500 bg-white shadow-2xs" dir="ltr">
+                  <div className="flex rounded-xl border border-slate-700 overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500/50 focus-within:border-indigo-500 bg-slate-950" dir="ltr">
                     <input
                       type="number"
                       dir="ltr"
@@ -291,23 +369,23 @@ export const FacingSection: React.FC<Props> = ({
                       step="10"
                       value={inputs.tempThickness}
                       onChange={(e) => handleTempThicknessChange(parseFloat(e.target.value) || 150)}
-                      className="w-full px-3 py-2 text-sm font-mono text-slate-800 text-left bg-transparent focus:outline-none"
+                      className="w-full px-3 py-2 text-sm font-mono text-slate-100 text-left bg-transparent focus:outline-none tabular-nums"
                     />
-                    <span className="bg-slate-100 border-l border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 shrink-0 select-none flex items-center justify-center min-w-[42px]">
+                    <span className="bg-slate-900 border-l border-slate-800 px-3 py-2 text-xs font-semibold text-slate-400 shrink-0 select-none flex items-center justify-center min-w-[44px]">
                       mm
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-500 mt-1">
+                  <p className="text-[11px] text-slate-400 mt-1">
                     {isFa ? `معادل ${(inputs.tempThickness / 10).toFixed(0)} سانتی‌متر` : `${(inputs.tempThickness / 10).toFixed(0)} cm`}
                   </p>
                 </div>
 
                 {/* f'c Shotcrete */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                     {t.paramFacingFc}
                   </label>
-                  <div className="flex rounded-lg border border-slate-300 overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500 bg-white shadow-2xs" dir="ltr">
+                  <div className="flex rounded-xl border border-slate-700 overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500/50 focus-within:border-indigo-500 bg-slate-950" dir="ltr">
                     <input
                       type="number"
                       dir="ltr"
@@ -316,9 +394,9 @@ export const FacingSection: React.FC<Props> = ({
                       step="5"
                       value={inputs.tempFc}
                       onChange={(e) => onChange({ ...inputs, tempFc: parseFloat(e.target.value) || 20 })}
-                      className="w-full px-3 py-2 text-sm font-mono text-slate-800 text-left bg-transparent focus:outline-none"
+                      className="w-full px-3 py-2 text-sm font-mono text-slate-100 text-left bg-transparent focus:outline-none tabular-nums"
                     />
-                    <span className="bg-slate-100 border-l border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 shrink-0 select-none flex items-center justify-center min-w-[42px]">
+                    <span className="bg-slate-900 border-l border-slate-800 px-3 py-2 text-xs font-semibold text-slate-400 shrink-0 select-none flex items-center justify-center min-w-[44px]">
                       MPa
                     </span>
                   </div>
@@ -326,41 +404,39 @@ export const FacingSection: React.FC<Props> = ({
 
                 {/* CF Factor */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                     {t.paramCF}
                   </label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      min="1.0"
-                      max="2.5"
-                      step="0.1"
-                      value={inputs.tempCF}
-                      onChange={(e) => onChange({ ...inputs, tempCF: parseFloat(e.target.value) || 1.5 })}
-                      className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 font-mono text-slate-800"
-                    />
-                  </div>
-                  <p className="text-[11px] text-slate-500 mt-1">{t.paramCFHelp}</p>
+                  <input
+                    type="number"
+                    min="1.0"
+                    max="2.5"
+                    step="0.1"
+                    value={inputs.tempCF}
+                    onChange={(e) => onChange({ ...inputs, tempCF: parseFloat(e.target.value) || 1.5 })}
+                    className="w-full px-3 py-2 text-sm border border-slate-700 rounded-xl bg-slate-950 focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 focus:outline-none font-mono text-slate-100 tabular-nums"
+                  />
+                  <p className="text-[11px] text-slate-400 mt-1">{t.paramCFHelp}</p>
                 </div>
               </div>
 
               {/* Reinforcement Configuration: Standard Mesh vs Manual Rebar Input */}
               <div className="space-y-3 pt-1">
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2">
-                  <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                    <Sliders className="w-3.5 h-3.5 text-indigo-600" />
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
+                  <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                    <Sliders className="w-3.5 h-3.5 text-indigo-400" />
                     <span>{isFa ? 'تعیین مشخصات آرماتوربندی شاتکریت موقت:' : 'Temporary Facing Reinforcement:'}</span>
                   </label>
 
-                  {/* Mode Toggle Pills */}
-                  <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[11px] font-semibold">
+                  {/* Mode Toggle */}
+                  <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 text-[11px] font-semibold">
                     <button
                       type="button"
                       onClick={() => setTempMode('standard')}
-                      className={`px-2.5 py-1 rounded-md transition ${
+                      className={`px-3 py-1 rounded-lg transition cursor-pointer ${
                         tempMode === 'standard'
-                          ? 'bg-white text-indigo-700 shadow-2xs font-bold'
-                          : 'text-slate-600 hover:text-slate-900'
+                          ? 'bg-slate-800 text-indigo-300 border border-slate-700 font-bold'
+                          : 'text-slate-400 hover:text-slate-200'
                       }`}
                     >
                       {isFa ? 'مش استاندارد پیش‌ساخته' : 'Standard Mesh Presets'}
@@ -368,10 +444,10 @@ export const FacingSection: React.FC<Props> = ({
                     <button
                       type="button"
                       onClick={() => setTempMode('manual')}
-                      className={`px-2.5 py-1 rounded-md transition flex items-center gap-1 ${
+                      className={`px-3 py-1 rounded-lg transition flex items-center gap-1 cursor-pointer ${
                         tempMode === 'manual'
-                          ? 'bg-indigo-600 text-white shadow-2xs font-bold'
-                          : 'text-slate-600 hover:text-slate-900'
+                          ? 'bg-indigo-600 text-white font-bold shadow-sm'
+                          : 'text-slate-400 hover:text-slate-200'
                       }`}
                     >
                       <Edit3 className="w-3 h-3" />
@@ -382,45 +458,43 @@ export const FacingSection: React.FC<Props> = ({
 
                 {/* Option 1: Standard Welded Wire Mesh Grid Selector */}
                 {tempMode === 'standard' && (
-                  <div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                      {STANDARD_MESH_OPTIONS.map((mesh, idx) => {
-                        const isSelected = inputs.tempMesh.avn === mesh.areaMm2PerM;
-                        return (
-                          <button
-                            key={idx}
-                            type="button"
-                            onClick={() => {
-                              setTempManualDia(mesh.wireDiameterMm);
-                              setTempManualSpacing(mesh.spacingMm);
-                              handleTempMeshSelect(mesh.areaMm2PerM, mesh.wireDiameterMm, mesh.spacingMm);
-                            }}
-                            className={`px-3 py-2 rounded-lg border text-xs text-left transition ${
-                              isSelected
-                                ? 'bg-indigo-600 text-white border-indigo-600 font-bold shadow-xs'
-                                : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
-                            }`}
-                          >
-                            <div>{isFa ? mesh.labelFa : mesh.labelEn}</div>
-                            <div className={`text-[10px] ${isSelected ? 'text-indigo-200' : 'text-slate-400'}`}>
-                              {mesh.areaMm2PerM} mm²/m
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {STANDARD_MESH_OPTIONS.map((mesh, idx) => {
+                      const isSelected = inputs.tempMesh.avn === mesh.areaMm2PerM;
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => {
+                            setTempManualDia(mesh.wireDiameterMm);
+                            setTempManualSpacing(mesh.spacingMm);
+                            handleTempMeshSelect(mesh.areaMm2PerM, mesh.wireDiameterMm, mesh.spacingMm);
+                          }}
+                          className={`px-3 py-2.5 rounded-xl border text-xs text-left transition cursor-pointer ${
+                            isSelected
+                              ? 'bg-indigo-600/25 text-indigo-200 border-indigo-400/60 font-bold shadow-sm'
+                              : 'bg-slate-950/70 hover:bg-slate-800 text-slate-300 border-slate-800'
+                          }`}
+                        >
+                          <div>{isFa ? mesh.labelFa : mesh.labelEn}</div>
+                          <div className={`text-[10px] font-mono tabular-nums mt-0.5 ${isSelected ? 'text-indigo-300' : 'text-slate-400'}`}>
+                            {mesh.areaMm2PerM} mm²/m
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
 
-                {/* Option 2: Manual Rebar Diameter & Spacing Input (User Requested Feature) */}
+                {/* Option 2: Manual Rebar Diameter & Spacing Input */}
                 {tempMode === 'manual' && (
-                  <div className="bg-indigo-50/60 border border-indigo-200 rounded-xl p-3.5 space-y-3">
-                    <div className="flex items-center justify-between text-xs text-indigo-950 font-bold border-b border-indigo-200/60 pb-1.5">
-                      <span className="flex items-center gap-1">
-                        <Calculator className="w-3.5 h-3.5 text-indigo-600" />
+                  <div className="bg-indigo-950/25 border border-indigo-500/30 rounded-xl p-4 space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-indigo-200 font-bold border-b border-indigo-500/20 pb-2">
+                      <span className="flex items-center gap-1.5">
+                        <Calculator className="w-3.5 h-3.5 text-indigo-400" />
                         <span>{isFa ? 'طراحی سفارشی: قطر میلگرد و فواصل شبکه' : 'Custom Rebar Size & Spacing'}</span>
                       </span>
-                      <span className="text-[11px] font-mono text-indigo-700">
+                      <span className="text-[11px] font-mono text-indigo-300" dir="ltr">
                         As = (1000/s) · (π·d²/4)
                       </span>
                     </div>
@@ -428,10 +502,10 @@ export const FacingSection: React.FC<Props> = ({
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                       {/* Rebar Diameter Input */}
                       <div>
-                        <label className="block text-slate-700 font-semibold mb-1">
+                        <label className="block text-slate-300 font-semibold mb-1.5">
                           {isFa ? 'قطر میلگرد شبکه (d):' : 'Rebar Diameter (d):'}
                         </label>
-                        <div className="flex rounded-lg border border-slate-300 overflow-hidden bg-white shadow-2xs mb-1.5" dir="ltr">
+                        <div className="flex rounded-xl border border-slate-700 overflow-hidden bg-slate-950 mb-2" dir="ltr">
                           <input
                             type="number"
                             min="4"
@@ -443,14 +517,13 @@ export const FacingSection: React.FC<Props> = ({
                               setTempManualDia(dia);
                               handleApplyTempManualRebar(dia, tempManualSpacing);
                             }}
-                            className="w-full px-2.5 py-1.5 text-xs font-mono font-bold text-slate-800 text-left bg-transparent focus:outline-none"
+                            className="w-full px-2.5 py-1.5 text-xs font-mono font-bold text-slate-100 text-left bg-transparent focus:outline-none tabular-nums"
                           />
-                          <span className="bg-slate-100 border-l border-slate-200 px-2.5 py-1 text-xs text-slate-600 font-bold flex items-center justify-center">
+                          <span className="bg-slate-900 border-l border-slate-800 px-2.5 py-1 text-xs text-slate-400 font-bold flex items-center justify-center">
                             mm
                           </span>
                         </div>
-                        {/* Quick Diameter Chips */}
-                        <div className="flex flex-wrap gap-1">
+                        <div className="flex flex-wrap gap-1.5">
                           {[5, 6, 8, 10, 12].map((d) => (
                             <button
                               key={d}
@@ -459,10 +532,10 @@ export const FacingSection: React.FC<Props> = ({
                                 setTempManualDia(d);
                                 handleApplyTempManualRebar(d, tempManualSpacing);
                               }}
-                              className={`px-2 py-0.5 text-[10px] rounded font-mono font-semibold transition ${
+                              className={`px-2.5 py-1 text-[10px] rounded-lg font-mono font-semibold transition cursor-pointer ${
                                 tempManualDia === d
                                   ? 'bg-indigo-600 text-white'
-                                  : 'bg-white hover:bg-indigo-100 text-indigo-900 border border-indigo-200'
+                                  : 'bg-slate-900 hover:bg-slate-800 text-indigo-300 border border-slate-700'
                               }`}
                             >
                               φ{d}
@@ -473,10 +546,10 @@ export const FacingSection: React.FC<Props> = ({
 
                       {/* Rebar Spacing Input */}
                       <div>
-                        <label className="block text-slate-700 font-semibold mb-1">
+                        <label className="block text-slate-300 font-semibold mb-1.5">
                           {isFa ? 'فاصله آرماتورها (s):' : 'Rebar Spacing (s):'}
                         </label>
-                        <div className="flex rounded-lg border border-slate-300 overflow-hidden bg-white shadow-2xs mb-1.5" dir="ltr">
+                        <div className="flex rounded-xl border border-slate-700 overflow-hidden bg-slate-950 mb-2" dir="ltr">
                           <input
                             type="number"
                             min="50"
@@ -488,14 +561,13 @@ export const FacingSection: React.FC<Props> = ({
                               setTempManualSpacing(sp);
                               handleApplyTempManualRebar(tempManualDia, sp);
                             }}
-                            className="w-full px-2.5 py-1.5 text-xs font-mono font-bold text-slate-800 text-left bg-transparent focus:outline-none"
+                            className="w-full px-2.5 py-1.5 text-xs font-mono font-bold text-slate-100 text-left bg-transparent focus:outline-none tabular-nums"
                           />
-                          <span className="bg-slate-100 border-l border-slate-200 px-2.5 py-1 text-xs text-slate-600 font-bold flex items-center justify-center">
+                          <span className="bg-slate-900 border-l border-slate-800 px-2.5 py-1 text-xs text-slate-400 font-bold flex items-center justify-center">
                             mm
                           </span>
                         </div>
-                        {/* Quick Spacing Chips */}
-                        <div className="flex flex-wrap gap-1">
+                        <div className="flex flex-wrap gap-1.5">
                           {[100, 125, 150, 200, 250].map((s) => (
                             <button
                               key={s}
@@ -504,10 +576,10 @@ export const FacingSection: React.FC<Props> = ({
                                 setTempManualSpacing(s);
                                 handleApplyTempManualRebar(tempManualDia, s);
                               }}
-                              className={`px-2 py-0.5 text-[10px] rounded font-mono font-semibold transition ${
+                              className={`px-2.5 py-1 text-[10px] rounded-lg font-mono font-semibold transition cursor-pointer ${
                                 tempManualSpacing === s
                                   ? 'bg-indigo-600 text-white'
-                                  : 'bg-white hover:bg-indigo-100 text-indigo-900 border border-indigo-200'
+                                  : 'bg-slate-900 hover:bg-slate-800 text-indigo-300 border border-slate-700'
                               }`}
                             >
                               @{s}mm
@@ -518,15 +590,15 @@ export const FacingSection: React.FC<Props> = ({
                     </div>
 
                     {/* Calculated Live Result Card & Apply Button */}
-                    <div className="bg-white rounded-lg p-2.5 border border-indigo-200 flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <div className="bg-slate-950/90 rounded-xl p-3 border border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
                       <div className="space-y-0.5">
-                        <div className="text-[11px] text-slate-600 font-medium">
+                        <div className="text-[11px] text-slate-300 font-medium">
                           {isFa ? 'آرماتوربندی حاصل:' : 'Resulting Reinforcement:'}{' '}
-                          <strong className="text-indigo-950 font-mono font-black" dir="ltr">
+                          <strong className="text-indigo-200 font-mono font-black" dir="ltr">
                             φ{tempManualDia}@{tempManualSpacing} mm
                           </strong>
                         </div>
-                        <div className="text-xs text-indigo-700 font-bold font-mono" dir="ltr">
+                        <div className="text-xs text-indigo-300 font-bold font-mono tabular-nums" dir="ltr">
                           As = {calcRebarArea(tempManualDia, tempManualSpacing)} mm²/m ({(calcRebarArea(tempManualDia, tempManualSpacing) / 100).toFixed(2)} cm²/m)
                         </div>
                       </div>
@@ -534,7 +606,7 @@ export const FacingSection: React.FC<Props> = ({
                       <button
                         type="button"
                         onClick={() => handleApplyTempManualRebar(tempManualDia, tempManualSpacing)}
-                        className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-xs flex items-center gap-1 transition"
+                        className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl shadow-sm flex items-center gap-1.5 transition cursor-pointer"
                       >
                         <Check className="w-3.5 h-3.5" />
                         <span>{isFa ? 'اعمال به شاتکریت' : 'Apply to Shotcrete'}</span>
@@ -544,14 +616,14 @@ export const FacingSection: React.FC<Props> = ({
                 )}
 
                 {/* Fine-Tuning Cross-Sectional Areas Inputs */}
-                <div className="pt-2 border-t border-slate-100">
-                  <div className="text-[11px] text-slate-500 font-semibold mb-1 flex items-center justify-between">
+                <div className="pt-2 border-t border-slate-800">
+                  <div className="text-[11px] text-slate-400 font-semibold mb-1.5 flex items-center justify-between">
                     <span>{isFa ? 'سطح مقطع جهت‌های مختلف (قابلیت اصلاح مستقل):' : 'Directional Reinforcement Areas:'}</span>
                     <span className="text-[10px] font-mono text-slate-400">mm²/m</span>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     <div>
-                      <label className="text-[10px] text-slate-600">{t.meshAvn}:</label>
+                      <label className="text-[11px] text-slate-400 block mb-1">{t.meshAvn}:</label>
                       <input
                         type="number"
                         value={inputs.tempMesh.avn}
@@ -561,11 +633,11 @@ export const FacingSection: React.FC<Props> = ({
                             tempMesh: { ...inputs.tempMesh, avn: parseFloat(e.target.value) || 0 },
                           })
                         }
-                        className="w-full px-2 py-1 text-xs border rounded font-mono text-slate-800"
+                        className="w-full px-2.5 py-1.5 text-xs border border-slate-700 rounded-lg bg-slate-950 font-mono text-slate-100 tabular-nums focus:outline-none focus:border-indigo-500"
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] text-slate-600">{t.meshAvm}:</label>
+                      <label className="text-[11px] text-slate-400 block mb-1">{t.meshAvm}:</label>
                       <input
                         type="number"
                         value={inputs.tempMesh.avm}
@@ -575,11 +647,11 @@ export const FacingSection: React.FC<Props> = ({
                             tempMesh: { ...inputs.tempMesh, avm: parseFloat(e.target.value) || 0 },
                           })
                         }
-                        className="w-full px-2 py-1 text-xs border rounded font-mono text-slate-800"
+                        className="w-full px-2.5 py-1.5 text-xs border border-slate-700 rounded-lg bg-slate-950 font-mono text-slate-100 tabular-nums focus:outline-none focus:border-indigo-500"
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] text-slate-600">{t.meshAhn}:</label>
+                      <label className="text-[11px] text-slate-400 block mb-1">{t.meshAhn}:</label>
                       <input
                         type="number"
                         value={inputs.tempMesh.ahn}
@@ -589,11 +661,11 @@ export const FacingSection: React.FC<Props> = ({
                             tempMesh: { ...inputs.tempMesh, ahn: parseFloat(e.target.value) || 0 },
                           })
                         }
-                        className="w-full px-2 py-1 text-xs border rounded font-mono text-slate-800"
+                        className="w-full px-2.5 py-1.5 text-xs border border-slate-700 rounded-lg bg-slate-950 font-mono text-slate-100 tabular-nums focus:outline-none focus:border-indigo-500"
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] text-slate-600">{t.meshAhm}:</label>
+                      <label className="text-[11px] text-slate-400 block mb-1">{t.meshAhm}:</label>
                       <input
                         type="number"
                         value={inputs.tempMesh.ahm}
@@ -603,7 +675,7 @@ export const FacingSection: React.FC<Props> = ({
                             tempMesh: { ...inputs.tempMesh, ahm: parseFloat(e.target.value) || 0 },
                           })
                         }
-                        className="w-full px-2 py-1 text-xs border rounded font-mono text-slate-800"
+                        className="w-full px-2.5 py-1.5 text-xs border border-slate-700 rounded-lg bg-slate-950 font-mono text-slate-100 tabular-nums focus:outline-none focus:border-indigo-500"
                       />
                     </div>
                   </div>
@@ -612,44 +684,45 @@ export const FacingSection: React.FC<Props> = ({
             </div>
 
             {/* Right Output: Temp Facing Flexure & Punching */}
-            <div className="lg:col-span-5 bg-slate-50 rounded-xl p-4 border border-slate-200 flex flex-col justify-between space-y-4">
+            <div className="lg:col-span-5 bg-slate-950/70 rounded-2xl p-4 border border-slate-800 flex flex-col justify-between space-y-4">
               {/* Flexure Check */}
-              <div className="border-b border-slate-200 pb-3">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-200/80">
-                  <span className="text-xs font-bold text-slate-700">
+              <div className="border-b border-slate-800 pb-3">
+                <div className="flex items-center justify-between pb-2.5 border-b border-slate-800">
+                  <span className="text-xs font-bold text-slate-200">
                     {isFa ? 'کنترل خمش شاتکریت موقت' : 'Temp Facing Flexure'}
                   </span>
                   <span
-                    className={`text-xs font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                    className={`text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 border ${
                       tempFlexure.isPassed
-                        ? 'bg-emerald-100 text-emerald-700'
-                        : 'bg-rose-100 text-rose-700'
+                        ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/35'
+                        : 'bg-rose-500/15 text-rose-300 border-rose-500/35'
                     }`}
                   >
                     {tempFlexure.isPassed ? <Check className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
-                    {tempFlexure.isPassed ? 'OK (تأمین شد)' : 'NG (مردود)'}
+                    {tempFlexure.isPassed ? (isFa ? 'OK (تأمین شد)' : 'OK (PASS)') : (isFa ? 'NG (مردود)' : 'NG (FAIL)')}
                   </span>
                 </div>
 
-                <div className="mt-2 space-y-1.5 text-xs">
+                <div className="mt-2.5 space-y-2 text-xs">
                   <div className="flex justify-between">
-                    <span className="text-slate-600">{isFa ? 'پارامتر هندسی (F):' : 'Geometry (F):'}</span>
-                    <span className="font-mono text-slate-800">{tempFlexure.F} mm²</span>
+                    <span className="text-slate-400">{isFa ? 'پارامتر هندسی (F):' : 'Geometry (F):'}</span>
+                    <span className="font-mono text-slate-200 tabular-nums" dir="ltr">{tempFlexure.F} mm²</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-600">{t.facingFlexureRes}:</span>
-                    <span className="font-mono text-slate-800">RFF = {tempFlexure.RFF} kN</span>
+                    <span className="text-slate-400">{t.facingFlexureRes}:</span>
+                    <span className="font-mono text-slate-200 tabular-nums" dir="ltr">RFF = {tempFlexure.RFF} kN</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-600">{isFa ? 'مقاومت طراحی (φFF · RFF):' : 'Factored Resistance:'}</span>
-                    <span className="font-mono font-bold text-emerald-700">{tempFlexure.factoredResistance} kN</span>
+                    <span className="text-slate-400">{isFa ? 'مقاومت طراحی (φFF · RFF):' : 'Factored Resistance:'}</span>
+                    <span className="font-mono font-bold text-emerald-300 tabular-nums" dir="ltr">{tempFlexure.factoredResistance} kN</span>
                   </div>
-                  <div className="flex justify-between pt-1">
-                    <span className="font-bold text-slate-700">{t.facingFlexureCDR}:</span>
+                  <div className="flex justify-between pt-1 border-t border-slate-800/60">
+                    <span className="font-bold text-slate-200">{t.facingFlexureCDR}:</span>
                     <span
-                      className={`font-mono font-black text-xs ${
-                        tempFlexure.CDR >= 1.0 ? 'text-emerald-600' : 'text-rose-600'
+                      className={`font-mono font-black text-xs tabular-nums ${
+                        tempFlexure.CDR >= 1.0 ? 'text-emerald-400' : 'text-rose-400'
                       }`}
+                      dir="ltr"
                     >
                       {tempFlexure.CDR} {tempFlexure.CDR >= 1.0 ? '≥ 1.0 (OK)' : '< 1.0 (NG)'}
                     </span>
@@ -659,41 +732,42 @@ export const FacingSection: React.FC<Props> = ({
 
               {/* Punching Shear Check */}
               <div>
-                <div className="flex items-center justify-between pb-2 border-b border-slate-200/80">
-                  <span className="text-xs font-bold text-slate-700">
+                <div className="flex items-center justify-between pb-2.5 border-b border-slate-800">
+                  <span className="text-xs font-bold text-slate-200">
                     {isFa ? 'کنترل برش پانچینگ شاتکریت' : 'Temp Facing Punching Shear'}
                   </span>
                   <span
-                    className={`text-xs font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                    className={`text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 border ${
                       tempPunching.isPassed
-                        ? 'bg-emerald-100 text-emerald-700'
-                        : 'bg-rose-100 text-rose-700'
+                        ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/35'
+                        : 'bg-rose-500/15 text-rose-300 border-rose-500/35'
                     }`}
                   >
                     {tempPunching.isPassed ? <Check className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
-                    {tempPunching.isPassed ? 'OK (تأمین شد)' : 'NG (مردود)'}
+                    {tempPunching.isPassed ? (isFa ? 'OK (تأمین شد)' : 'OK (PASS)') : (isFa ? 'NG (مردود)' : 'NG (FAIL)')}
                   </span>
                 </div>
 
-                <div className="mt-2 space-y-1.5 text-xs">
+                <div className="mt-2.5 space-y-2 text-xs">
                   <div className="flex justify-between">
-                    <span className="text-slate-600">{t.facingPunchingDc}:</span>
-                    <span className="font-mono text-slate-800">Dc\' = {tempPunching.DcPrime} m</span>
+                    <span className="text-slate-400">{t.facingPunchingDc}:</span>
+                    <span className="font-mono text-slate-200 tabular-nums" dir="ltr">Dc' = {tempPunching.DcPrime} m</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-600">{t.facingPunchingRes}:</span>
-                    <span className="font-mono text-slate-800">VF = {tempPunching.VF} kN</span>
+                    <span className="text-slate-400">{t.facingPunchingRes}:</span>
+                    <span className="font-mono text-slate-200 tabular-nums" dir="ltr">VF = {tempPunching.VF} kN</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-600">{isFa ? 'مقاومت طراحی پانچ (φFP · RFP):' : 'Factored Punching:'}</span>
-                    <span className="font-mono font-bold text-indigo-700">{tempPunching.factoredResistance} kN</span>
+                    <span className="text-slate-400">{isFa ? 'مقاومت طراحی پانچ (φFP · RFP):' : 'Factored Punching:'}</span>
+                    <span className="font-mono font-bold text-indigo-300 tabular-nums" dir="ltr">{tempPunching.factoredResistance} kN</span>
                   </div>
-                  <div className="flex justify-between pt-1">
-                    <span className="font-bold text-slate-700">{t.facingPunchingCDR}:</span>
+                  <div className="flex justify-between pt-1 border-t border-slate-800/60">
+                    <span className="font-bold text-slate-200">{t.facingPunchingCDR}:</span>
                     <span
-                      className={`font-mono font-black text-xs ${
-                        tempPunching.CDR >= 1.0 ? 'text-emerald-600' : 'text-rose-600'
+                      className={`font-mono font-black text-xs tabular-nums ${
+                        tempPunching.CDR >= 1.0 ? 'text-emerald-400' : 'text-rose-400'
                       }`}
+                      dir="ltr"
                     >
                       {tempPunching.CDR} {tempPunching.CDR >= 1.0 ? '≥ 1.0 (OK)' : '< 1.0 (NG)'}
                     </span>
@@ -705,16 +779,52 @@ export const FacingSection: React.FC<Props> = ({
         )}
 
         {/* SUBTAB 2: FINAL / PERMANENT CONCRETE FACING */}
-        {activeFacingSubTab === 'perm' && (
+        {activeFacingSubTab === 'perm' && isTemporarySystem && (
+          <div className="p-6 rounded-2xl bg-amber-950/25 border border-amber-500/35 text-center space-y-3">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/35 text-xs font-bold">
+              <span>{isFa ? 'غیرالزامی — سیستم نیلینگ موقت' : 'Not Required — Temporary Nailing System'}</span>
+            </div>
+            <h3 className="text-sm sm:text-base font-bold text-slate-100">
+              {isFa
+                ? 'سیستم موقت به رویه پوشش دائم (بتن نهایی) نیاز ندارد'
+                : 'Temporary Soil Nail System Does Not Require Permanent Facing'}
+            </h3>
+            <p className="text-xs text-slate-300 max-w-2xl mx-auto leading-relaxed">
+              {isFa
+                ? 'در سربرگ «مشخصات سیستم نیلینگ»، نوع سازه به صورت موقت (< ۲ سال) انتخاب شده است. بر اساس آیین‌نامه AASHTO LRFD و FHWA-NHI-14-007 برای پایدارسازی موقت گودها، تنها طراحی و کنترل پوشش شاتکریت اولیه (زیربخش ۱) ملاک عمل است.'
+                : 'Your system is currently set to Temporary (< 2 years) in the Nailing System tab. Per AASHTO LRFD & FHWA-NHI-14-007, only the temporary shotcrete facing needs verification.'}
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setActiveFacingSubTab('temp')}
+                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs cursor-pointer transition"
+              >
+                {isFa ? 'بازگشت به شاتکریت موقت' : 'Back to Temporary Shotcrete'}
+              </button>
+              {onGoToSystemSpecs && (
+                <button
+                  type="button"
+                  onClick={onGoToSystemSpecs}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/35 font-bold text-xs cursor-pointer transition"
+                >
+                  {isFa ? 'تغییر نوع سیستم به دائم در تب مشخصات سیستم' : 'Switch to Permanent in System Tab'}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeFacingSubTab === 'perm' && !isTemporarySystem && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <div className="lg:col-span-7 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {/* Thickness h_perm */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                     {t.paramFacingThickness}
                   </label>
-                  <div className="flex rounded-lg border border-slate-300 overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500 bg-white shadow-2xs" dir="ltr">
+                  <div className="flex rounded-xl border border-slate-700 overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500/50 focus-within:border-indigo-500 bg-slate-950" dir="ltr">
                     <input
                       type="number"
                       dir="ltr"
@@ -723,23 +833,23 @@ export const FacingSection: React.FC<Props> = ({
                       step="10"
                       value={inputs.permThickness}
                       onChange={(e) => onChange({ ...inputs, permThickness: parseFloat(e.target.value) || 200 })}
-                      className="w-full px-3 py-2 text-sm font-mono text-slate-800 text-left bg-transparent focus:outline-none"
+                      className="w-full px-3 py-2 text-sm font-mono text-slate-100 text-left bg-transparent focus:outline-none tabular-nums"
                     />
-                    <span className="bg-slate-100 border-l border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 shrink-0 select-none flex items-center justify-center min-w-[42px]">
+                    <span className="bg-slate-900 border-l border-slate-800 px-3 py-2 text-xs font-semibold text-slate-400 shrink-0 select-none flex items-center justify-center min-w-[44px]">
                       mm
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-500 mt-1">
+                  <p className="text-[11px] text-slate-400 mt-1">
                     {isFa ? `معادل ${(inputs.permThickness / 10).toFixed(0)} سانتی‌متر بتن مسلح` : `${(inputs.permThickness / 10).toFixed(0)} cm`}
                   </p>
                 </div>
 
                 {/* f'c Concrete */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                     {t.paramFacingFc}
                   </label>
-                  <div className="flex rounded-lg border border-slate-300 overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500 bg-white shadow-2xs" dir="ltr">
+                  <div className="flex rounded-xl border border-slate-700 overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500/50 focus-within:border-indigo-500 bg-slate-950" dir="ltr">
                     <input
                       type="number"
                       dir="ltr"
@@ -748,9 +858,9 @@ export const FacingSection: React.FC<Props> = ({
                       step="5"
                       value={inputs.permFc}
                       onChange={(e) => onChange({ ...inputs, permFc: parseFloat(e.target.value) || 30 })}
-                      className="w-full px-3 py-2 text-sm font-mono text-slate-800 text-left bg-transparent focus:outline-none"
+                      className="w-full px-3 py-2 text-sm font-mono text-slate-100 text-left bg-transparent focus:outline-none tabular-nums"
                     />
-                    <span className="bg-slate-100 border-l border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 shrink-0 select-none flex items-center justify-center min-w-[42px]">
+                    <span className="bg-slate-900 border-l border-slate-800 px-3 py-2 text-xs font-semibold text-slate-400 shrink-0 select-none flex items-center justify-center min-w-[44px]">
                       MPa
                     </span>
                   </div>
@@ -758,16 +868,16 @@ export const FacingSection: React.FC<Props> = ({
 
                 {/* CF Factor (Always 1.0 for permanent) */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                     {t.paramCF}
                   </label>
                   <input
                     type="number"
                     disabled
                     value={1.0}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-100 font-mono text-slate-500"
+                    className="w-full px-3 py-2 text-sm border border-slate-800 rounded-xl bg-slate-950/60 font-mono text-slate-500 tabular-nums"
                   />
-                  <p className="text-[11px] text-slate-500 mt-1">
+                  <p className="text-[11px] text-slate-400 mt-1">
                     {isFa ? 'برای پوشش دائم همواره CF = 1.0 است' : 'CF = 1.0 for permanent facings'}
                   </p>
                 </div>
@@ -775,21 +885,21 @@ export const FacingSection: React.FC<Props> = ({
 
               {/* Reinforcement Configuration: Standard Mesh vs Manual Rebar Input for Permanent Facing */}
               <div className="space-y-3 pt-1">
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2">
-                  <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                    <Sliders className="w-3.5 h-3.5 text-indigo-600" />
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
+                  <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                    <Sliders className="w-3.5 h-3.5 text-indigo-400" />
                     <span>{isFa ? 'تعیین مشخصات آرماتوربندی بتن دائم:' : 'Permanent Facing Reinforcement:'}</span>
                   </label>
 
-                  {/* Mode Toggle Pills */}
-                  <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[11px] font-semibold">
+                  {/* Mode Toggle */}
+                  <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 text-[11px] font-semibold">
                     <button
                       type="button"
                       onClick={() => setPermMode('standard')}
-                      className={`px-2.5 py-1 rounded-md transition ${
+                      className={`px-3 py-1 rounded-lg transition cursor-pointer ${
                         permMode === 'standard'
-                          ? 'bg-white text-indigo-700 shadow-2xs font-bold'
-                          : 'text-slate-600 hover:text-slate-900'
+                          ? 'bg-slate-800 text-indigo-300 border border-slate-700 font-bold'
+                          : 'text-slate-400 hover:text-slate-200'
                       }`}
                     >
                       {isFa ? 'مش استاندارد پیش‌ساخته' : 'Standard Mesh Presets'}
@@ -797,10 +907,10 @@ export const FacingSection: React.FC<Props> = ({
                     <button
                       type="button"
                       onClick={() => setPermMode('manual')}
-                      className={`px-2.5 py-1 rounded-md transition flex items-center gap-1 ${
+                      className={`px-3 py-1 rounded-lg transition flex items-center gap-1 cursor-pointer ${
                         permMode === 'manual'
-                          ? 'bg-indigo-600 text-white shadow-2xs font-bold'
-                          : 'text-slate-600 hover:text-slate-900'
+                          ? 'bg-indigo-600 text-white font-bold shadow-sm'
+                          : 'text-slate-400 hover:text-slate-200'
                       }`}
                     >
                       <Edit3 className="w-3 h-3" />
@@ -811,45 +921,43 @@ export const FacingSection: React.FC<Props> = ({
 
                 {/* Option 1: Standard Welded Wire Mesh Grid Selector */}
                 {permMode === 'standard' && (
-                  <div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                      {STANDARD_MESH_OPTIONS.map((mesh, idx) => {
-                        const isSelected = inputs.permMesh.avn === mesh.areaMm2PerM;
-                        return (
-                          <button
-                            key={idx}
-                            type="button"
-                            onClick={() => {
-                              setPermManualDia(mesh.wireDiameterMm);
-                              setPermManualSpacing(mesh.spacingMm);
-                              handlePermMeshSelect(mesh.areaMm2PerM, mesh.wireDiameterMm, mesh.spacingMm);
-                            }}
-                            className={`px-3 py-2 rounded-lg border text-xs text-left transition ${
-                              isSelected
-                                ? 'bg-indigo-600 text-white border-indigo-600 font-bold shadow-xs'
-                                : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
-                            }`}
-                          >
-                            <div>{isFa ? mesh.labelFa : mesh.labelEn}</div>
-                            <div className={`text-[10px] ${isSelected ? 'text-indigo-200' : 'text-slate-400'}`}>
-                              {mesh.areaMm2PerM} mm²/m
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {STANDARD_MESH_OPTIONS.map((mesh, idx) => {
+                      const isSelected = inputs.permMesh.avn === mesh.areaMm2PerM;
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => {
+                            setPermManualDia(mesh.wireDiameterMm);
+                            setPermManualSpacing(mesh.spacingMm);
+                            handlePermMeshSelect(mesh.areaMm2PerM, mesh.wireDiameterMm, mesh.spacingMm);
+                          }}
+                          className={`px-3 py-2.5 rounded-xl border text-xs text-left transition cursor-pointer ${
+                            isSelected
+                              ? 'bg-indigo-600/25 text-indigo-200 border-indigo-400/60 font-bold shadow-sm'
+                              : 'bg-slate-950/70 hover:bg-slate-800 text-slate-300 border-slate-800'
+                          }`}
+                        >
+                          <div>{isFa ? mesh.labelFa : mesh.labelEn}</div>
+                          <div className={`text-[10px] font-mono tabular-nums mt-0.5 ${isSelected ? 'text-indigo-300' : 'text-slate-400'}`}>
+                            {mesh.areaMm2PerM} mm²/m
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
 
-                {/* Option 2: Manual Rebar Diameter & Spacing Input (User Requested Feature) */}
+                {/* Option 2: Manual Rebar Diameter & Spacing Input */}
                 {permMode === 'manual' && (
-                  <div className="bg-indigo-50/60 border border-indigo-200 rounded-xl p-3.5 space-y-3">
-                    <div className="flex items-center justify-between text-xs text-indigo-950 font-bold border-b border-indigo-200/60 pb-1.5">
-                      <span className="flex items-center gap-1">
-                        <Calculator className="w-3.5 h-3.5 text-indigo-600" />
+                  <div className="bg-indigo-950/25 border border-indigo-500/30 rounded-xl p-4 space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-indigo-200 font-bold border-b border-indigo-500/20 pb-2">
+                      <span className="flex items-center gap-1.5">
+                        <Calculator className="w-3.5 h-3.5 text-indigo-400" />
                         <span>{isFa ? 'طراحی سفارشی آرماتور بتن دائم: قطر و فواصل' : 'Custom Permanent Rebar Size & Spacing'}</span>
                       </span>
-                      <span className="text-[11px] font-mono text-indigo-700">
+                      <span className="text-[11px] font-mono text-indigo-300" dir="ltr">
                         As = (1000/s) · (π·d²/4)
                       </span>
                     </div>
@@ -857,10 +965,10 @@ export const FacingSection: React.FC<Props> = ({
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                       {/* Rebar Diameter Input */}
                       <div>
-                        <label className="block text-slate-700 font-semibold mb-1">
+                        <label className="block text-slate-300 font-semibold mb-1.5">
                           {isFa ? 'قطر میلگرد دیواره دائم (d):' : 'Rebar Diameter (d):'}
                         </label>
-                        <div className="flex rounded-lg border border-slate-300 overflow-hidden bg-white shadow-2xs mb-1.5" dir="ltr">
+                        <div className="flex rounded-xl border border-slate-700 overflow-hidden bg-slate-950 mb-2" dir="ltr">
                           <input
                             type="number"
                             min="6"
@@ -872,14 +980,13 @@ export const FacingSection: React.FC<Props> = ({
                               setPermManualDia(dia);
                               handleApplyPermManualRebar(dia, permManualSpacing);
                             }}
-                            className="w-full px-2.5 py-1.5 text-xs font-mono font-bold text-slate-800 text-left bg-transparent focus:outline-none"
+                            className="w-full px-2.5 py-1.5 text-xs font-mono font-bold text-slate-100 text-left bg-transparent focus:outline-none tabular-nums"
                           />
-                          <span className="bg-slate-100 border-l border-slate-200 px-2.5 py-1 text-xs text-slate-600 font-bold flex items-center justify-center">
+                          <span className="bg-slate-900 border-l border-slate-800 px-2.5 py-1 text-xs text-slate-400 font-bold flex items-center justify-center">
                             mm
                           </span>
                         </div>
-                        {/* Quick Diameter Chips for Permanent */}
-                        <div className="flex flex-wrap gap-1">
+                        <div className="flex flex-wrap gap-1.5">
                           {[8, 10, 12, 14, 16, 18, 20].map((d) => (
                             <button
                               key={d}
@@ -888,10 +995,10 @@ export const FacingSection: React.FC<Props> = ({
                                 setPermManualDia(d);
                                 handleApplyPermManualRebar(d, permManualSpacing);
                               }}
-                              className={`px-2 py-0.5 text-[10px] rounded font-mono font-semibold transition ${
+                              className={`px-2.5 py-1 text-[10px] rounded-lg font-mono font-semibold transition cursor-pointer ${
                                 permManualDia === d
                                   ? 'bg-indigo-600 text-white'
-                                  : 'bg-white hover:bg-indigo-100 text-indigo-900 border border-indigo-200'
+                                  : 'bg-slate-900 hover:bg-slate-800 text-indigo-300 border border-slate-700'
                               }`}
                             >
                               φ{d}
@@ -902,10 +1009,10 @@ export const FacingSection: React.FC<Props> = ({
 
                       {/* Rebar Spacing Input */}
                       <div>
-                        <label className="block text-slate-700 font-semibold mb-1">
+                        <label className="block text-slate-300 font-semibold mb-1.5">
                           {isFa ? 'فاصله آرماتورها (s):' : 'Rebar Spacing (s):'}
                         </label>
-                        <div className="flex rounded-lg border border-slate-300 overflow-hidden bg-white shadow-2xs mb-1.5" dir="ltr">
+                        <div className="flex rounded-xl border border-slate-700 overflow-hidden bg-slate-950 mb-2" dir="ltr">
                           <input
                             type="number"
                             min="50"
@@ -917,14 +1024,13 @@ export const FacingSection: React.FC<Props> = ({
                               setPermManualSpacing(sp);
                               handleApplyPermManualRebar(permManualDia, sp);
                             }}
-                            className="w-full px-2.5 py-1.5 text-xs font-mono font-bold text-slate-800 text-left bg-transparent focus:outline-none"
+                            className="w-full px-2.5 py-1.5 text-xs font-mono font-bold text-slate-100 text-left bg-transparent focus:outline-none tabular-nums"
                           />
-                          <span className="bg-slate-100 border-l border-slate-200 px-2.5 py-1 text-xs text-slate-600 font-bold flex items-center justify-center">
+                          <span className="bg-slate-900 border-l border-slate-800 px-2.5 py-1 text-xs text-slate-400 font-bold flex items-center justify-center">
                             mm
                           </span>
                         </div>
-                        {/* Quick Spacing Chips */}
-                        <div className="flex flex-wrap gap-1">
+                        <div className="flex flex-wrap gap-1.5">
                           {[100, 125, 150, 200, 250, 300].map((s) => (
                             <button
                               key={s}
@@ -933,10 +1039,10 @@ export const FacingSection: React.FC<Props> = ({
                                 setPermManualSpacing(s);
                                 handleApplyPermManualRebar(permManualDia, s);
                               }}
-                              className={`px-2 py-0.5 text-[10px] rounded font-mono font-semibold transition ${
+                              className={`px-2.5 py-1 text-[10px] rounded-lg font-mono font-semibold transition cursor-pointer ${
                                 permManualSpacing === s
                                   ? 'bg-indigo-600 text-white'
-                                  : 'bg-white hover:bg-indigo-100 text-indigo-900 border border-indigo-200'
+                                  : 'bg-slate-900 hover:bg-slate-800 text-indigo-300 border border-slate-700'
                               }`}
                             >
                               @{s}mm
@@ -947,15 +1053,15 @@ export const FacingSection: React.FC<Props> = ({
                     </div>
 
                     {/* Calculated Live Result Card & Apply Button */}
-                    <div className="bg-white rounded-lg p-2.5 border border-indigo-200 flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <div className="bg-slate-950/90 rounded-xl p-3 border border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
                       <div className="space-y-0.5">
-                        <div className="text-[11px] text-slate-600 font-medium">
+                        <div className="text-[11px] text-slate-300 font-medium">
                           {isFa ? 'آرماتوربندی حاصل:' : 'Resulting Reinforcement:'}{' '}
-                          <strong className="text-indigo-950 font-mono font-black" dir="ltr">
+                          <strong className="text-indigo-200 font-mono font-black" dir="ltr">
                             φ{permManualDia}@{permManualSpacing} mm
                           </strong>
                         </div>
-                        <div className="text-xs text-indigo-700 font-bold font-mono" dir="ltr">
+                        <div className="text-xs text-indigo-300 font-bold font-mono tabular-nums" dir="ltr">
                           As = {calcRebarArea(permManualDia, permManualSpacing)} mm²/m ({(calcRebarArea(permManualDia, permManualSpacing) / 100).toFixed(2)} cm²/m)
                         </div>
                       </div>
@@ -963,7 +1069,7 @@ export const FacingSection: React.FC<Props> = ({
                       <button
                         type="button"
                         onClick={() => handleApplyPermManualRebar(permManualDia, permManualSpacing)}
-                        className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-xs flex items-center gap-1 transition"
+                        className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl shadow-sm flex items-center gap-1.5 transition cursor-pointer"
                       >
                         <Check className="w-3.5 h-3.5" />
                         <span>{isFa ? 'اعمال به بتن دائم' : 'Apply to Permanent Facing'}</span>
@@ -973,14 +1079,14 @@ export const FacingSection: React.FC<Props> = ({
                 )}
 
                 {/* Fine-Tuning Cross-Sectional Areas Inputs */}
-                <div className="pt-2 border-t border-slate-100">
-                  <div className="text-[11px] text-slate-500 font-semibold mb-1 flex items-center justify-between">
+                <div className="pt-2 border-t border-slate-800">
+                  <div className="text-[11px] text-slate-400 font-semibold mb-1.5 flex items-center justify-between">
                     <span>{isFa ? 'سطح مقطع جهت‌های مختلف (قابلیت اصلاح مستقل):' : 'Directional Reinforcement Areas:'}</span>
                     <span className="text-[10px] font-mono text-slate-400">mm²/m</span>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     <div>
-                      <label className="text-[10px] text-slate-600">{t.meshAvn}:</label>
+                      <label className="text-[11px] text-slate-400 block mb-1">{t.meshAvn}:</label>
                       <input
                         type="number"
                         value={inputs.permMesh.avn}
@@ -990,11 +1096,11 @@ export const FacingSection: React.FC<Props> = ({
                             permMesh: { ...inputs.permMesh, avn: parseFloat(e.target.value) || 0 },
                           })
                         }
-                        className="w-full px-2 py-1 text-xs border rounded font-mono text-slate-800"
+                        className="w-full px-2.5 py-1.5 text-xs border border-slate-700 rounded-lg bg-slate-950 font-mono text-slate-100 tabular-nums focus:outline-none focus:border-indigo-500"
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] text-slate-600">{t.meshAvm}:</label>
+                      <label className="text-[11px] text-slate-400 block mb-1">{t.meshAvm}:</label>
                       <input
                         type="number"
                         value={inputs.permMesh.avm}
@@ -1004,11 +1110,11 @@ export const FacingSection: React.FC<Props> = ({
                             permMesh: { ...inputs.permMesh, avm: parseFloat(e.target.value) || 0 },
                           })
                         }
-                        className="w-full px-2 py-1 text-xs border rounded font-mono text-slate-800"
+                        className="w-full px-2.5 py-1.5 text-xs border border-slate-700 rounded-lg bg-slate-950 font-mono text-slate-100 tabular-nums focus:outline-none focus:border-indigo-500"
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] text-slate-600">{t.meshAhn}:</label>
+                      <label className="text-[11px] text-slate-400 block mb-1">{t.meshAhn}:</label>
                       <input
                         type="number"
                         value={inputs.permMesh.ahn}
@@ -1018,11 +1124,11 @@ export const FacingSection: React.FC<Props> = ({
                             permMesh: { ...inputs.permMesh, ahn: parseFloat(e.target.value) || 0 },
                           })
                         }
-                        className="w-full px-2 py-1 text-xs border rounded font-mono text-slate-800"
+                        className="w-full px-2.5 py-1.5 text-xs border border-slate-700 rounded-lg bg-slate-950 font-mono text-slate-100 tabular-nums focus:outline-none focus:border-indigo-500"
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] text-slate-600">{t.meshAhm}:</label>
+                      <label className="text-[11px] text-slate-400 block mb-1">{t.meshAhm}:</label>
                       <input
                         type="number"
                         value={inputs.permMesh.ahm}
@@ -1032,7 +1138,7 @@ export const FacingSection: React.FC<Props> = ({
                             permMesh: { ...inputs.permMesh, ahm: parseFloat(e.target.value) || 0 },
                           })
                         }
-                        className="w-full px-2 py-1 text-xs border rounded font-mono text-slate-800"
+                        className="w-full px-2.5 py-1.5 text-xs border border-slate-700 rounded-lg bg-slate-950 font-mono text-slate-100 tabular-nums focus:outline-none focus:border-indigo-500"
                       />
                     </div>
                   </div>
@@ -1041,44 +1147,45 @@ export const FacingSection: React.FC<Props> = ({
             </div>
 
             {/* Right Output: Perm Facing Flexure & Punching */}
-            <div className="lg:col-span-5 bg-slate-50 rounded-xl p-4 border border-slate-200 flex flex-col justify-between space-y-4">
+            <div className="lg:col-span-5 bg-slate-950/70 rounded-2xl p-4 border border-slate-800 flex flex-col justify-between space-y-4">
               {/* Flexure Check */}
-              <div className="border-b border-slate-200 pb-3">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-200/80">
-                  <span className="text-xs font-bold text-slate-700">
+              <div className="border-b border-slate-800 pb-3">
+                <div className="flex items-center justify-between pb-2.5 border-b border-slate-800">
+                  <span className="text-xs font-bold text-slate-200">
                     {isFa ? 'کنترل خمش بتن دائم' : 'Perm Facing Flexure'}
                   </span>
                   <span
-                    className={`text-xs font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                    className={`text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 border ${
                       permFlexure.isPassed
-                        ? 'bg-emerald-100 text-emerald-700'
-                        : 'bg-rose-100 text-rose-700'
+                        ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/35'
+                        : 'bg-rose-500/15 text-rose-300 border-rose-500/35'
                     }`}
                   >
                     {permFlexure.isPassed ? <Check className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
-                    {permFlexure.isPassed ? 'OK (تأمین شد)' : 'NG (مردود)'}
+                    {permFlexure.isPassed ? (isFa ? 'OK (تأمین شد)' : 'OK (PASS)') : (isFa ? 'NG (مردود)' : 'NG (FAIL)')}
                   </span>
                 </div>
 
-                <div className="mt-2 space-y-1.5 text-xs">
+                <div className="mt-2.5 space-y-2 text-xs">
                   <div className="flex justify-between">
-                    <span className="text-slate-600">{isFa ? 'پارامتر هندسی (F):' : 'Geometry (F):'}</span>
-                    <span className="font-mono text-slate-800">{permFlexure.F} mm²</span>
+                    <span className="text-slate-400">{isFa ? 'پارامتر هندسی (F):' : 'Geometry (F):'}</span>
+                    <span className="font-mono text-slate-200 tabular-nums" dir="ltr">{permFlexure.F} mm²</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-600">{t.facingFlexureRes}:</span>
-                    <span className="font-mono text-slate-800">RFF = {permFlexure.RFF} kN</span>
+                    <span className="text-slate-400">{t.facingFlexureRes}:</span>
+                    <span className="font-mono text-slate-200 tabular-nums" dir="ltr">RFF = {permFlexure.RFF} kN</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-600">{isFa ? 'مقاومت طراحی (φFF · RFF):' : 'Factored Resistance:'}</span>
-                    <span className="font-mono font-bold text-emerald-700">{permFlexure.factoredResistance} kN</span>
+                    <span className="text-slate-400">{isFa ? 'مقاومت طراحی (φFF · RFF):' : 'Factored Resistance:'}</span>
+                    <span className="font-mono font-bold text-emerald-300 tabular-nums" dir="ltr">{permFlexure.factoredResistance} kN</span>
                   </div>
-                  <div className="flex justify-between pt-1">
-                    <span className="font-bold text-slate-700">{t.facingFlexureCDR}:</span>
+                  <div className="flex justify-between pt-1 border-t border-slate-800/60">
+                    <span className="font-bold text-slate-200">{t.facingFlexureCDR}:</span>
                     <span
-                      className={`font-mono font-black text-xs ${
-                        permFlexure.CDR >= 1.0 ? 'text-emerald-600' : 'text-rose-600'
+                      className={`font-mono font-black text-xs tabular-nums ${
+                        permFlexure.CDR >= 1.0 ? 'text-emerald-400' : 'text-rose-400'
                       }`}
+                      dir="ltr"
                     >
                       {permFlexure.CDR} {permFlexure.CDR >= 1.0 ? '≥ 1.0 (OK)' : '< 1.0 (NG)'}
                     </span>
@@ -1088,41 +1195,42 @@ export const FacingSection: React.FC<Props> = ({
 
               {/* Punching Shear Check */}
               <div>
-                <div className="flex items-center justify-between pb-2 border-b border-slate-200/80">
-                  <span className="text-xs font-bold text-slate-700">
+                <div className="flex items-center justify-between pb-2.5 border-b border-slate-800">
+                  <span className="text-xs font-bold text-slate-200">
                     {isFa ? 'کنترل برش پانچینگ بتن دائم' : 'Perm Facing Punching Shear'}
                   </span>
                   <span
-                    className={`text-xs font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                    className={`text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 border ${
                       permPunching.isPassed
-                        ? 'bg-emerald-100 text-emerald-700'
-                        : 'bg-rose-100 text-rose-700'
+                        ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/35'
+                        : 'bg-rose-500/15 text-rose-300 border-rose-500/35'
                     }`}
                   >
                     {permPunching.isPassed ? <Check className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
-                    {permPunching.isPassed ? 'OK (تأمین شد)' : 'NG (مردود)'}
+                    {permPunching.isPassed ? (isFa ? 'OK (تأمین شد)' : 'OK (PASS)') : (isFa ? 'NG (مردود)' : 'NG (FAIL)')}
                   </span>
                 </div>
 
-                <div className="mt-2 space-y-1.5 text-xs">
+                <div className="mt-2.5 space-y-2 text-xs">
                   <div className="flex justify-between">
-                    <span className="text-slate-600">{t.facingPunchingDc}:</span>
-                    <span className="font-mono text-slate-800">Dc\' = {permPunching.DcPrime} m</span>
+                    <span className="text-slate-400">{t.facingPunchingDc}:</span>
+                    <span className="font-mono text-slate-200 tabular-nums" dir="ltr">Dc' = {permPunching.DcPrime} m</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-600">{t.facingPunchingRes}:</span>
-                    <span className="font-mono text-slate-800">VF = {permPunching.VF} kN</span>
+                    <span className="text-slate-400">{t.facingPunchingRes}:</span>
+                    <span className="font-mono text-slate-200 tabular-nums" dir="ltr">VF = {permPunching.VF} kN</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-600">{isFa ? 'مقاومت طراحی پانچ (φFP · RFP):' : 'Factored Punching:'}</span>
-                    <span className="font-mono font-bold text-indigo-700">{permPunching.factoredResistance} kN</span>
+                    <span className="text-slate-400">{isFa ? 'مقاومت طراحی پانچ (φFP · RFP):' : 'Factored Punching:'}</span>
+                    <span className="font-mono font-bold text-indigo-300 tabular-nums" dir="ltr">{permPunching.factoredResistance} kN</span>
                   </div>
-                  <div className="flex justify-between pt-1">
-                    <span className="font-bold text-slate-700">{t.facingPunchingCDR}:</span>
+                  <div className="flex justify-between pt-1 border-t border-slate-800/60">
+                    <span className="font-bold text-slate-200">{t.facingPunchingCDR}:</span>
                     <span
-                      className={`font-mono font-black text-xs ${
-                        permPunching.CDR >= 1.0 ? 'text-emerald-600' : 'text-rose-600'
+                      className={`font-mono font-black text-xs tabular-nums ${
+                        permPunching.CDR >= 1.0 ? 'text-emerald-400' : 'text-rose-400'
                       }`}
+                      dir="ltr"
                     >
                       {permPunching.CDR} {permPunching.CDR >= 1.0 ? '≥ 1.0 (OK)' : '< 1.0 (NG)'}
                     </span>
@@ -1134,13 +1242,49 @@ export const FacingSection: React.FC<Props> = ({
         )}
 
         {/* SUBTAB 3: HEADED STUDS TENSILE CHECK */}
-        {activeFacingSubTab === 'studs' && (
+        {activeFacingSubTab === 'studs' && isTemporarySystem && (
+          <div className="p-6 rounded-2xl bg-amber-950/25 border border-amber-500/35 text-center space-y-3">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/35 text-xs font-bold">
+              <span>{isFa ? 'غیرالزامی — سیستم نیلینگ موقت' : 'Not Required — Temporary Nailing System'}</span>
+            </div>
+            <h3 className="text-sm sm:text-base font-bold text-slate-100">
+              {isFa
+                ? 'گل‌میخ‌های اتصال سر نیل در سیستم موقت حذف می‌شوند'
+                : 'Headed Studs Are Omitted for Temporary Nailing Systems'}
+            </h3>
+            <p className="text-xs text-slate-300 max-w-2xl mx-auto leading-relaxed">
+              {isFa
+                ? 'گل‌میخ‌ها (Headed Studs) صرفاً برای انتقال کشش سر نیل به شبکه آرماتور بتن دائم کاربرد دارند. از آنجا که این پروژه به عنوان سیستم موقت تعریف شده و فاقد رویه پوشش دائم است، کنترل گل‌میخ‌ها موضوعیت ندارد.'
+                : 'Headed studs transfer nail head tension into the permanent concrete facing rebar grid. Because this project is set to Temporary (no permanent facing), headed stud checks are waived.'}
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setActiveFacingSubTab('temp')}
+                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs cursor-pointer transition"
+              >
+                {isFa ? 'بازگشت به شاتکریت موقت' : 'Back to Temporary Shotcrete'}
+              </button>
+              {onGoToSystemSpecs && (
+                <button
+                  type="button"
+                  onClick={onGoToSystemSpecs}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/35 font-bold text-xs cursor-pointer transition"
+                >
+                  {isFa ? 'تغییر نوع سیستم به دائم' : 'Switch to Permanent System'}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeFacingSubTab === 'studs' && !isTemporarySystem && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <div className="lg:col-span-7 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {/* Count NH */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                     {t.paramStudsCount}
                   </label>
                   <select
@@ -1148,7 +1292,7 @@ export const FacingSection: React.FC<Props> = ({
                     onChange={(e) =>
                       onChange({ ...inputs, headedStudsCount: parseInt(e.target.value) || 4 })
                     }
-                    className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white"
+                    className="w-full px-3 py-2 text-sm border border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 focus:outline-none bg-slate-950 text-slate-100"
                   >
                     <option value={2}>2 {isFa ? 'عدد' : 'studs'}</option>
                     <option value={4}>4 {isFa ? 'عدد (متداول)' : 'studs (Standard)'}</option>
@@ -1159,10 +1303,10 @@ export const FacingSection: React.FC<Props> = ({
 
                 {/* Stud Diameter */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                     {t.paramStudDia}
                   </label>
-                  <div className="flex rounded-lg border border-slate-300 overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500 bg-white shadow-2xs" dir="ltr">
+                  <div className="flex rounded-xl border border-slate-700 overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500/50 focus-within:border-indigo-500 bg-slate-950" dir="ltr">
                     <input
                       type="number"
                       dir="ltr"
@@ -1173,9 +1317,9 @@ export const FacingSection: React.FC<Props> = ({
                       onChange={(e) =>
                         onChange({ ...inputs, headedStudDiameter: parseFloat(e.target.value) || 16 })
                       }
-                      className="w-full px-3 py-2 text-sm font-mono text-slate-800 text-left bg-transparent focus:outline-none"
+                      className="w-full px-3 py-2 text-sm font-mono text-slate-100 text-left bg-transparent focus:outline-none tabular-nums"
                     />
-                    <span className="bg-slate-100 border-l border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 shrink-0 select-none flex items-center justify-center min-w-[42px]">
+                    <span className="bg-slate-900 border-l border-slate-800 px-3 py-2 text-xs font-semibold text-slate-400 shrink-0 select-none flex items-center justify-center min-w-[44px]">
                       mm
                     </span>
                   </div>
@@ -1183,10 +1327,10 @@ export const FacingSection: React.FC<Props> = ({
 
                 {/* Stud fy */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                     {t.paramStudFy}
                   </label>
-                  <div className="flex rounded-lg border border-slate-300 overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500 bg-white shadow-2xs" dir="ltr">
+                  <div className="flex rounded-xl border border-slate-700 overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500/50 focus-within:border-indigo-500 bg-slate-950" dir="ltr">
                     <input
                       type="number"
                       dir="ltr"
@@ -1197,9 +1341,9 @@ export const FacingSection: React.FC<Props> = ({
                       onChange={(e) =>
                         onChange({ ...inputs, headedStudFy: parseFloat(e.target.value) || 350 })
                       }
-                      className="w-full px-3 py-2 text-sm font-mono text-slate-800 text-left bg-transparent focus:outline-none"
+                      className="w-full px-3 py-2 text-sm font-mono text-slate-100 text-left bg-transparent focus:outline-none tabular-nums"
                     />
-                    <span className="bg-slate-100 border-l border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 shrink-0 select-none flex items-center justify-center min-w-[42px]">
+                    <span className="bg-slate-900 border-l border-slate-800 px-3 py-2 text-xs font-semibold text-slate-400 shrink-0 select-none flex items-center justify-center min-w-[44px]">
                       MPa
                     </span>
                   </div>
@@ -1209,7 +1353,7 @@ export const FacingSection: React.FC<Props> = ({
               {/* Stud Type */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                     {t.paramStudType}
                   </label>
                   <select
@@ -1218,7 +1362,7 @@ export const FacingSection: React.FC<Props> = ({
                       const type = e.target.value as 'A307' | 'A325';
                       onChange({ ...inputs, headedStudType: type, phiFH: type === 'A307' ? 0.70 : 0.80 });
                     }}
-                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white"
+                    className="w-full px-3 py-2 text-xs border border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 focus:outline-none bg-slate-950 text-slate-100"
                   >
                     <option value="A307">A307 Steel Bolt (φFH = 0.70)</option>
                     <option value="A325">A325 Steel Bolt (φFH = 0.80)</option>
@@ -1228,59 +1372,60 @@ export const FacingSection: React.FC<Props> = ({
             </div>
 
             {/* Right Output: Headed Studs */}
-            <div className="lg:col-span-5 bg-slate-50 rounded-xl p-4 border border-slate-200 flex flex-col justify-between">
+            <div className="lg:col-span-5 bg-slate-950/70 rounded-2xl p-4 border border-slate-800 flex flex-col justify-between">
               <div>
-                <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-                  <span className="text-xs font-bold text-slate-700">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                  <span className="text-xs font-bold text-slate-200">
                     {isFa ? 'نتایج کنترل کشش گل‌میخ‌های سر نیل' : 'Headed Studs Tensile Check'}
                   </span>
                   <span
-                    className={`text-xs font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                    className={`text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 border ${
                       headedStuds.isPassed
-                        ? 'bg-emerald-100 text-emerald-700'
-                        : 'bg-rose-100 text-rose-700'
+                        ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/35'
+                        : 'bg-rose-500/15 text-rose-300 border-rose-500/35'
                     }`}
                   >
                     {headedStuds.isPassed ? <Check className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
-                    {headedStuds.isPassed ? 'OK (کفایت دارد)' : 'NG (مردود)'}
+                    {headedStuds.isPassed ? (isFa ? 'OK (کفایت دارد)' : 'OK (PASS)') : (isFa ? 'NG (مردود)' : 'NG (FAIL)')}
                   </span>
                 </div>
 
                 <div className="mt-3 space-y-2 text-xs">
-                  <div className="flex justify-between py-1 border-b border-slate-200/60">
-                    <span className="text-slate-600">{t.studsFactoredDemand}:</span>
-                    <span className="font-mono font-bold text-slate-800">
+                  <div className="flex justify-between py-1 border-b border-slate-800/70">
+                    <span className="text-slate-400">{t.studsFactoredDemand}:</span>
+                    <span className="font-mono font-bold text-slate-200 tabular-nums" dir="ltr">
                       γ · T0 = {headedStuds.factoredLoad} kN
                     </span>
                   </div>
 
-                  <div className="flex justify-between py-1 border-b border-slate-200/60">
-                    <span className="text-slate-600">{isFa ? 'مساحت کل مقطع گل‌میخ‌ها (As):' : 'Total Stud Area:'}</span>
-                    <span className="font-mono text-slate-800">
+                  <div className="flex justify-between py-1 border-b border-slate-800/70">
+                    <span className="text-slate-400">{isFa ? 'مساحت کل مقطع گل‌میخ‌ها (As):' : 'Total Stud Area:'}</span>
+                    <span className="font-mono text-slate-200 tabular-nums" dir="ltr">
                       {headedStuds.totalAs} cm² ({inputs.headedStudsCount}×{headedStuds.AsSingleStud} cm²)
                     </span>
                   </div>
 
-                  <div className="flex justify-between py-1 border-b border-slate-200/60">
-                    <span className="text-slate-600">{t.studsNominalRes}:</span>
-                    <span className="font-mono text-slate-800">
+                  <div className="flex justify-between py-1 border-b border-slate-800/70">
+                    <span className="text-slate-400">{t.studsNominalRes}:</span>
+                    <span className="font-mono text-slate-200 tabular-nums" dir="ltr">
                       RFH = {headedStuds.RFH} kN
                     </span>
                   </div>
 
-                  <div className="flex justify-between py-1 border-b border-slate-200/60">
-                    <span className="text-slate-600">{isFa ? 'مقاومت طراحی (φFH · RFH):' : 'Factored Resistance:'}</span>
-                    <span className="font-mono font-bold text-indigo-700">
+                  <div className="flex justify-between py-1 border-b border-slate-800/70">
+                    <span className="text-slate-400">{isFa ? 'مقاومت طراحی (φFH · RFH):' : 'Factored Resistance:'}</span>
+                    <span className="font-mono font-bold text-indigo-300 tabular-nums" dir="ltr">
                       {headedStuds.factoredResistance} kN
                     </span>
                   </div>
 
                   <div className="flex justify-between py-1.5 pt-2">
-                    <span className="font-bold text-slate-700">{t.studsCDR}:</span>
+                    <span className="font-bold text-slate-200">{t.studsCDR}:</span>
                     <span
-                      className={`font-mono font-black text-sm ${
-                        headedStuds.CDR >= 1.0 ? 'text-emerald-600' : 'text-rose-600'
+                      className={`font-mono font-black text-sm tabular-nums ${
+                        headedStuds.CDR >= 1.0 ? 'text-emerald-400' : 'text-rose-400'
                       }`}
+                      dir="ltr"
                     >
                       {headedStuds.CDR} {headedStuds.CDR >= 1.0 ? '≥ 1.0 (OK)' : '< 1.0 (NG)'}
                     </span>
@@ -1288,8 +1433,8 @@ export const FacingSection: React.FC<Props> = ({
                 </div>
               </div>
 
-              <div className="mt-4 p-2.5 rounded-lg bg-indigo-50/70 border border-indigo-200/70 text-[11px] text-indigo-800 flex items-start gap-2">
-                <Info className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
+              <div className="mt-4 p-3 rounded-xl bg-indigo-950/30 border border-indigo-500/25 text-[11px] text-indigo-200 flex items-start gap-2">
+                <Info className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
                 <span>
                   {isFa
                     ? `رابطه آیین‌نامه AASHTO 11.12.6.2.3: φFH · RFH ≥ γp-EV · T0sn با RFH = NH · As · Fy-hs. گل‌میخ‌ها برای انتقال کشش سر نیل به بتن پوشش نهایی طراحی می‌شوند.`

@@ -1,14 +1,20 @@
 /**
  * AASHTO LRFD (2020) & FHWA-NHI-14-007 Soil Nail Wall Design Suite
- * Windows Desktop-style Engineering Application
+ * Unified Dark Geotechnical Windows Desktop & Mobile/Android PWA Application
  */
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { DesignState, Language } from './types/nailing';
-import { SAMPLE_PROJECT_FROM_PDF, DEEP_EXCAVATION_PRESET } from './constants/standardsData';
+import {
+  SAMPLE_PROJECT_FROM_PDF,
+  DEEP_EXCAVATION_PRESET,
+  DEFAULT_SYSTEM_SPECS,
+  normalizeDesignState,
+} from './constants/standardsData';
 import { calculateAll } from './utils/calculations';
-import { TRANSLATIONS } from './utils/translations';
-import { DesktopHeader } from './components/DesktopHeader';
-import { DesignSummaryCard } from './components/DesignSummaryCard';
+import { DesktopHeader, MainTabId } from './components/DesktopHeader';
+import { OfflineIndicator } from './components/common/OfflineIndicator';
+import { DesignSummaryCard, DashboardTargetSection } from './components/DesignSummaryCard';
+import { SystemSpecsSection } from './components/SystemSpecsSection';
 import { TendonSection } from './components/TendonSection';
 import { PulloutSection } from './components/PulloutSection';
 import { BearingPlateSection } from './components/BearingPlateSection';
@@ -21,18 +27,10 @@ import { StepByStepGuide } from './components/StepByStepGuide';
 import { GuidanceModal } from './components/GuidanceModal';
 import { ReportModal } from './components/ReportModal';
 import { ProjectInfoCard } from './components/ProjectInfoCard';
+import { WindowsExeModal } from './components/WindowsExeModal';
+import { AndroidInstallModal } from './components/AndroidInstallModal';
+import { AboutModal } from './components/AboutModal';
 import {
-  Layers,
-  Calculator,
-  Compass,
-  BookOpen,
-  FileText,
-  FolderOpen,
-  Save,
-  CheckCircle,
-  AlertTriangle,
-  Info,
-  Shield,
   Activity,
   Cpu,
   ChevronRight,
@@ -40,903 +38,835 @@ import {
   ChevronDown,
   ChevronUp,
   Sliders,
-  Check,
   LayoutGrid,
   FileCheck,
+  CheckCircle,
+  AlertTriangle,
+  Sparkles,
+  BookOpen,
+  Layers,
+  FileText,
+  Building2,
+  Compass,
 } from 'lucide-react';
 
-export type CalcModuleId = 'tendon' | 'pullout' | 'plate' | 'facing' | 'corrosion' | 'cad' | 'all';
+export type CalcModuleId =
+  | 'tendon'
+  | 'pullout'
+  | 'plate'
+  | 'facing'
+  | 'corrosion'
+  | 'cad'
+  | 'all';
+
+const MODULE_ORDER: CalcModuleId[] = [
+  'tendon',
+  'pullout',
+  'plate',
+  'facing',
+  'corrosion',
+  'cad',
+];
 
 export default function App() {
   const [lang, setLang] = useState<Language>('fa');
-  const [state, setState] = useState<DesignState>(SAMPLE_PROJECT_FROM_PDF);
-  const [activeMainTab, setActiveMainTab] = useState<'calc' | 'guide' | 'refs' | 'cad' | 'report'>('calc');
+  const [history, setHistory] = useState<DesignState[]>([normalizeDesignState(SAMPLE_PROJECT_FROM_PDF)]);
+  const [historyIdx, setHistoryIdx] = useState<number>(0);
+
+  const state = history[historyIdx];
+
+  const updateStateWithHistory = useCallback(
+    (next: DesignState) => {
+      const normalized = normalizeDesignState(next);
+      setHistory((prev) => {
+        const sliced = prev.slice(0, historyIdx + 1);
+        const updated = [...sliced, normalized].slice(-30);
+        setHistoryIdx(updated.length - 1);
+        return updated;
+      });
+    },
+    [historyIdx]
+  );
+
+  const canUndo = historyIdx > 0;
+  const canRedo = historyIdx < history.length - 1;
+
+  const handleUndo = useCallback(() => {
+    setHistoryIdx((idx) => (idx > 0 ? idx - 1 : idx));
+  }, []);
+
+  const handleRedo = useCallback(() => {
+    setHistoryIdx((idx) => (idx < history.length - 1 ? idx + 1 : idx));
+  }, [history.length]);
+
+  const [activeMainTab, setActiveMainTab] = useState<MainTabId>('project');
   const [activeCalcModule, setActiveCalcModule] = useState<CalcModuleId>('tendon');
+  const [facingTargetSubTab, setFacingTargetSubTab] = useState<{ tab: 'temp' | 'perm' | 'studs'; seq: number } | null>(null);
   const [isSummaryExpanded, setIsSummaryExpanded] = useState<boolean>(true);
-  const [isProjectInfoExpanded, setIsProjectInfoExpanded] = useState<boolean>(false);
+
+  // Windows desktop ergonomics
+  const [zoomPercent, setZoomPercent] = useState<number>(100);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [isCompactHeader, setIsCompactHeader] = useState<boolean>(false);
+
+  // Modals
   const [isProjectManagerOpen, setIsProjectManagerOpen] = useState(false);
   const [isGuidanceOpen, setIsGuidanceOpen] = useState(false);
-  const [isReportOpen, setIsReportOpen] = useState(false);
+  const [isWindowsModalOpen, setIsWindowsModalOpen] = useState(false);
+  const [isAndroidModalOpen, setIsAndroidModalOpen] = useState(false);
+  const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
 
-  // Recalculate everything in real-time
-  const results = useMemo(() => {
-    return calculateAll(state);
-  }, [state]);
-
+  const results = useMemo(() => calculateAll(state), [state]);
   const isFa = lang === 'fa';
-  const t = TRANSLATIONS[lang];
 
-  // Update HTML title & dir based on language
+  const handleDashboardNavigate = useCallback((target: DashboardTargetSection) => {
+    if (target.tab === 'project') {
+      setActiveMainTab('project');
+    } else if (target.tab === 'system') {
+      setActiveMainTab('system');
+    } else if (target.tab === 'calc') {
+      setActiveMainTab('calc');
+      setActiveCalcModule(target.module);
+      if (target.module === 'facing' && target.facingSubTab) {
+        setFacingTargetSubTab((prev) => ({
+          tab: target.facingSubTab!,
+          seq: (prev?.seq || 0) + 1,
+        }));
+      }
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  useEffect(() => {
+    // Keep portable Windows EXE loopback server alive while window is open
+    if (
+      typeof window !== 'undefined' &&
+      window.location.hostname === '127.0.0.1' &&
+      window.location.port !== '3000' &&
+      window.location.port !== '5173' &&
+      window.location.port !== '4173'
+    ) {
+      const sendPing = () => {
+        fetch('/api/ping').catch(() => {});
+      };
+      sendPing();
+      const timer = window.setInterval(sendPing, 5000);
+      const handleUnload = () => {
+        if (navigator.sendBeacon) {
+          navigator.sendBeacon('/api/shutdown');
+        }
+      };
+      window.addEventListener('beforeunload', handleUnload);
+      return () => {
+        window.clearInterval(timer);
+        window.removeEventListener('beforeunload', handleUnload);
+      };
+    }
+    return undefined;
+  }, []);
+
   useEffect(() => {
     document.documentElement.lang = lang;
     document.documentElement.dir = isFa ? 'rtl' : 'ltr';
   }, [lang, isFa]);
 
-  const handleToggleLang = () => {
-    setLang((prev) => (prev === 'fa' ? 'en' : 'fa'));
-  };
+  const handleToggleFullscreen = useCallback(() => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen?.().catch(() => {});
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen?.().catch(() => {});
+      setIsFullscreen(false);
+    }
+  }, []);
+
+  // Global keyboard shortcuts (Windows standard UX)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
+        if ((e.target as HTMLElement)?.tagName !== 'INPUT') {
+          e.preventDefault();
+          handleUndo();
+        }
+      } else if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) {
+        if ((e.target as HTMLElement)?.tagName !== 'INPUT') {
+          e.preventDefault();
+          handleRedo();
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('snda:trigger-save'));
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'o') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('snda:trigger-open'));
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') {
+        e.preventDefault();
+        setActiveMainTab('report');
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'm') {
+        e.preventDefault();
+        setIsCompactHeader((p) => !p);
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === '=' || e.key === '+')) {
+        e.preventDefault();
+        setZoomPercent((z) => Math.min(130, z + 5));
+      } else if ((e.ctrlKey || e.metaKey) && e.key === '-') {
+        e.preventDefault();
+        setZoomPercent((z) => Math.max(80, z - 5));
+      } else if ((e.ctrlKey || e.metaKey) && e.key === '0') {
+        e.preventDefault();
+        setZoomPercent(100);
+      } else if (e.key === 'F1') {
+        e.preventDefault();
+        setIsAboutModalOpen(true);
+      } else if (e.key === 'F11') {
+        e.preventDefault();
+        handleToggleFullscreen();
+      }
+    };
+
+    const onOpenReport = () => setActiveMainTab('report');
+    const onNavCalc = () => setActiveMainTab('calc');
+    const onNavGuide = () => setActiveMainTab('guide');
+    const onNavCad = () => setActiveMainTab('cad');
+    const onNavRefs = () => setActiveMainTab('refs');
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('snda:open-report', onOpenReport);
+    window.addEventListener('snda:navigate-calc', onNavCalc);
+    window.addEventListener('snda:navigate-guide', onNavGuide);
+    window.addEventListener('snda:navigate-cad', onNavCad);
+    window.addEventListener('snda:navigate-refs', onNavRefs);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('snda:open-report', onOpenReport);
+      window.removeEventListener('snda:navigate-calc', onNavCalc);
+      window.removeEventListener('snda:navigate-guide', onNavGuide);
+      window.removeEventListener('snda:navigate-cad', onNavCad);
+      window.removeEventListener('snda:navigate-refs', onNavRefs);
+    };
+  }, [handleUndo, handleRedo, handleToggleFullscreen]);
 
   const handleNewProject = () => {
-    if (confirm(isFa ? 'آیا مایل به ایجاد یک پروژه جدید با تنظیمات پیش‌فرض هستید؟' : 'Create a new blank project with defaults?')) {
-      setState(SAMPLE_PROJECT_FROM_PDF);
-    }
+    updateStateWithHistory(SAMPLE_PROJECT_FROM_PDF);
   };
 
+  const handleLoadDeepPreset = () => {
+    updateStateWithHistory(DEEP_EXCAVATION_PRESET);
+  };
+
+  const isTemporarySystem = state.corrosion.designLife === 'temporary';
+
+  const handleChangeDesignLife = (life: 'temporary' | 'permanent') => {
+    updateStateWithHistory({
+      ...state,
+      corrosion: {
+        ...state.corrosion,
+        designLife: life,
+        selectedClass:
+          life === 'temporary'
+            ? 'None'
+            : state.corrosion.selectedClass === 'None'
+            ? results.corrosion.isAggressive
+              ? 'ClassA'
+              : 'ClassB'
+            : state.corrosion.selectedClass,
+      },
+    });
+  };
+
+  const isFacingModulePassed = isTemporarySystem
+    ? results.tempFlexure.isPassed && results.tempPunching.isPassed
+    : results.tempFlexure.isPassed &&
+      results.tempPunching.isPassed &&
+      results.permFlexure.isPassed &&
+      results.permPunching.isPassed &&
+      results.headedStuds.isPassed;
+
+  const workflowSteps: { id: CalcModuleId; step: number; nameFa: string; nameEn: string; ok: boolean }[] = [
+    { id: 'tendon', step: 1, nameFa: 'میلگرد کششی', nameEn: 'Tendon', ok: results.tendon.isPassed },
+    { id: 'pullout', step: 2, nameFa: 'بیرون‌کشیدگی دوغاب', nameEn: 'Pullout', ok: results.pullout.isPassed },
+    { id: 'plate', step: 3, nameFa: 'صفحه سر نیل', nameEn: 'Plate', ok: results.plate.isPassed },
+    {
+      id: 'facing',
+      step: 4,
+      nameFa: 'رویه شاتکریت و بتن',
+      nameEn: 'Facings',
+      ok: isFacingModulePassed,
+    },
+    {
+      id: 'corrosion',
+      step: 5,
+      nameFa: 'حفاظت خوردگی',
+      nameEn: 'Corrosion',
+      ok: results.corrosion.summaryStatus === 'Compliant',
+    },
+    { id: 'cad', step: 6, nameFa: 'نقشه CAD', nameEn: 'CAD', ok: true },
+  ];
+
+  const activeModuleIdx = MODULE_ORDER.indexOf(activeCalcModule);
+  const prevModule = activeModuleIdx > 0 ? MODULE_ORDER[activeModuleIdx - 1] : null;
+  const nextModule = activeModuleIdx >= 0 && activeModuleIdx < MODULE_ORDER.length - 1 ? MODULE_ORDER[activeModuleIdx + 1] : null;
+
   return (
-    <div className={`min-h-screen bg-slate-100 flex flex-col font-sans ${isFa ? 'font-vazir' : ''}`}>
-      {/* 1. UNIFIED WINDOWS DESKTOP COMMAND & NAVIGATION HEADER */}
+    <div
+      className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans"
+      style={{ fontSize: `${zoomPercent}%` }}
+    >
+      {/* 1. WINDOWS MENU BAR & UNIFIED COMMAND HEADER */}
       <DesktopHeader
         state={state}
-        onUpdateState={setState}
+        results={results}
+        onUpdateState={updateStateWithHistory}
         lang={lang}
-        onToggleLang={handleToggleLang}
+        onToggleLang={() => setLang((p) => (p === 'fa' ? 'en' : 'fa'))}
         onOpenGuidance={() => setIsGuidanceOpen(true)}
-        onOpenReport={() => setIsReportOpen(true)}
-        onPrint={() => setIsReportOpen(true)}
+        onOpenAboutModal={() => setIsAboutModalOpen(true)}
+        onOpenReport={() => setActiveMainTab('report')}
+        onPrint={() => {
+          setActiveMainTab('report');
+          setTimeout(() => window.print(), 120);
+        }}
         onOpenProjectManager={() => setIsProjectManagerOpen(true)}
         onNewProject={handleNewProject}
+        onLoadDeepPreset={handleLoadDeepPreset}
+        onOpenWindowsModal={() => setIsWindowsModalOpen(true)}
+        onOpenAndroidModal={() => setIsAndroidModalOpen(true)}
         activeMainTab={activeMainTab}
-        onSelectMainTab={setActiveMainTab}
+        onSelectMainTab={(tab) => setActiveMainTab(tab)}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        zoomPercent={zoomPercent}
+        onZoomIn={() => setZoomPercent((z) => Math.min(130, z + 5))}
+        onZoomOut={() => setZoomPercent((z) => Math.max(80, z - 5))}
+        onResetZoom={() => setZoomPercent(100)}
+        isFullscreen={isFullscreen}
+        onToggleFullscreen={handleToggleFullscreen}
+        isCompactHeader={isCompactHeader}
+        onToggleCompactHeader={() => setIsCompactHeader((p) => !p)}
       />
 
-      {/* 2. MAIN APPLICATION WORKSPACE */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-5 space-y-4">
-        {/* TOP DOCK: COLLAPSIBLE EXECUTIVE KPI MONITOR & PROJECT METADATA */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
-          <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs">
-            <div className="flex items-center gap-3">
-              <span className="font-bold text-slate-800 flex items-center gap-1.5">
-                <Activity className="w-4 h-4 text-blue-600" />
-                <span>{isFa ? 'داشبورد نظارت مهندسی و مشخصات پروژه' : 'Engineering Dashboard & Project Setup'}</span>
-              </span>
-              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${results.isOverallPassed ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
-                {results.isOverallPassed ? (isFa ? 'کلیه کنترل‌ها OK' : 'ALL CHECKS PASS') : (isFa ? 'نیازمند اصلاح (NG)' : 'REVISION REQ.')}
-              </span>
-            </div>
+      {/* Offline Status Strip (only visible when device is offline) */}
+      <OfflineIndicator isFa={isFa} />
 
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setIsSummaryExpanded(!isSummaryExpanded)}
-                className={`px-2.5 py-1 rounded-md text-[11px] font-semibold flex items-center gap-1 transition ${
-                  isSummaryExpanded ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                <span>{isFa ? 'خلاصه شاخص‌ها و نسبت‌های CDR' : 'Executive CDR Ratios'}</span>
-                {isSummaryExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-              </button>
+      {/* 2. MAIN WORKSPACE */}
+      <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-5 space-y-4 pb-24 md:pb-6">
 
-              <button
-                type="button"
-                onClick={() => setIsProjectInfoExpanded(!isProjectInfoExpanded)}
-                className={`px-2.5 py-1 rounded-md text-[11px] font-semibold flex items-center gap-1 transition ${
-                  isProjectInfoExpanded ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                <span>{isFa ? 'مشخصات و فرضیات پروژه' : 'Project Metadata'}</span>
-                {isProjectInfoExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-              </button>
-            </div>
-          </div>
+        {/* TOP-LEVEL TAB 1: PROJECT INFO */}
+        {activeMainTab === 'project' && (
+          <ProjectInfoCard
+            metadata={state.metadata}
+            onChange={(metadata) => updateStateWithHistory({ ...state, metadata })}
+            lang={lang}
+            onOpenGuidance={() => setIsGuidanceOpen(true)}
+            onNextTab={() => setActiveMainTab('system')}
+          />
+        )}
 
-          {/* Collapsible Executive Summary Card */}
-          {isSummaryExpanded && (
-            <div className="p-3 border-b border-slate-100 bg-slate-50/50">
-              <DesignSummaryCard state={state} results={results} lang={lang} />
-            </div>
-          )}
+        {/* TOP-LEVEL TAB 2: SOIL NAIL SYSTEM SPECS (GEOMETRY, LIFE & PRELIMINARY SIZING) */}
+        {activeMainTab === 'system' && (
+          <SystemSpecsSection
+            system={state.system || DEFAULT_SYSTEM_SPECS}
+            Sh={state.facing.Sh}
+            Sv={state.facing.Sv}
+            designLife={state.corrosion.designLife}
+            currentTmax={state.tendon.Tmax}
+            currentLp={state.pullout.effectiveBondLength}
+            onChangeSystem={(system) => updateStateWithHistory({ ...state, system })}
+            onChangeSpacing={(Sh, Sv) =>
+              updateStateWithHistory({
+                ...state,
+                facing: { ...state.facing, Sh, Sv },
+              })
+            }
+            onChangeDesignLife={handleChangeDesignLife}
+            onApplyPreliminaryToDesign={(estimatedTmax, estimatedLp) =>
+              updateStateWithHistory({
+                ...state,
+                tendon: { ...state.tendon, Tmax: estimatedTmax },
+                pullout: { ...state.pullout, effectiveBondLength: estimatedLp },
+              })
+            }
+            onGoToCalculations={() => {
+              setActiveMainTab('calc');
+              setActiveCalcModule('tendon');
+            }}
+            onOpenGuidance={() => setIsGuidanceOpen(true)}
+            lang={lang}
+          />
+        )}
 
-          {/* Collapsible Project Metadata Form */}
-          {isProjectInfoExpanded && (
-            <div className="p-3 bg-white border-t border-slate-200">
-              <ProjectInfoCard
-                metadata={state.metadata}
-                onChange={(metadata) => setState({ ...state, metadata })}
-                lang={lang}
-              />
-            </div>
-          )}
-        </div>
-
-        {/* TAB 1: DESIGN CALCULATIONS */}
+        {/* TOP-LEVEL TAB 3: DESIGN CALCULATIONS */}
         {activeMainTab === 'calc' && (
           <div className="space-y-4">
-            {/* WINDOWS DESKTOP CALCULATION MODULE RIBBON / STEP BAR */}
-            <div className="bg-white rounded-xl border border-slate-200 p-2 shadow-2xs">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-2 px-1">
-                <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
-                  <Sliders className="w-4 h-4 text-indigo-600" />
-                  <span>{isFa ? 'ماژول‌های محاسباتی طراحی نیلینگ (گردش کار گام‌به‌گام ویندوز):' : 'Soil Nail Design Modules (Step Workflow):'}</span>
+            {/* CALCULATION MODULE RIBBON */}
+            <div className="bg-slate-900/90 rounded-2xl border border-slate-800 p-2.5 shadow-xl">
+              <div className="flex flex-wrap items-center justify-between border-b border-slate-800 pb-2 mb-2 px-1 gap-2">
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-200">
+                  <Sliders className="w-4 h-4 text-amber-400" />
+                  <span>{isFa ? 'ماژول‌های محاسباتی طراحی نیلینگ (پرش مستقیم به هر گام):' : 'Soil Nail Design Modules (Direct Step Jump):'}</span>
                 </div>
-                <div className="text-[11px] text-indigo-600 font-semibold">
-                  {isFa ? 'پرش مستقیم به هر گام دلخواه با ۱ کلیک (بدون نیاز به طی گام‌های میانی)' : 'Direct 1-click jump to any step (non-sequential workflow)'}
-                </div>
+                <span className="text-[11px] text-sky-400 font-medium">
+                  {isFa
+                    ? isTemporarySystem
+                      ? 'حالت سیستم موقت فعال (بدون پوشش دائم / معاف از خوردگی)'
+                      : 'حالت سیستم دائم فعال (پوشش دائم و حفاظت خوردگی الزامی)'
+                    : isTemporarySystem
+                    ? 'Temporary System Active (No Perm. Facing / Corrosion Exempt)'
+                    : 'Permanent System Active (Perm. Facing & Corrosion Required)'}
+                </span>
               </div>
 
-              {/* Module Buttons Strip */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-1.5 text-xs">
-                {/* 1. Tendon */}
-                <button
-                  type="button"
-                  onClick={() => setActiveCalcModule('tendon')}
-                  className={`p-2 rounded-lg border ${isFa ? 'text-right' : 'text-left'} transition flex flex-col justify-between ${
-                    activeCalcModule === 'tendon'
-                      ? 'bg-blue-50 border-blue-600 text-blue-900 shadow-xs ring-1 ring-blue-500 font-bold'
-                      : 'bg-slate-50/70 hover:bg-slate-100 border-slate-200 text-slate-700'
-                  }`}
-                >
-                  <div className="flex items-center justify-between w-full mb-1">
-                    <span className="font-bold flex items-center gap-1 text-[11px]">
-                      <span className="w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-black">1</span>
-                      <span>{isFa ? 'میلگرد کششی' : 'Tendon'}</span>
-                    </span>
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold ${results.tendon.isPassed ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
-                      {results.tendon.isPassed ? 'OK' : 'NG'}
-                    </span>
-                  </div>
-                  <div className="text-[10px] text-slate-500 font-mono" dir="ltr">
-                    φ{state.tendon.barDiameter}mm (CDR={results.tendon.capacityDemandRatio})
-                  </div>
-                </button>
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 text-xs">
+                {[
+                  {
+                    id: 'tendon' as CalcModuleId,
+                    step: '1',
+                    color: 'bg-blue-600',
+                    title: isFa ? 'میلگرد کششی' : 'Tendon',
+                    ok: results.tendon.isPassed,
+                    sub: `φ${state.tendon.barDiameter}mm (CDR=${results.tendon.capacityDemandRatio})`,
+                  },
+                  {
+                    id: 'pullout' as CalcModuleId,
+                    step: '2',
+                    color: 'bg-emerald-600',
+                    title: isFa ? 'بیرون‌کشیدگی دوغاب' : 'Pullout',
+                    ok: results.pullout.isPassed,
+                    sub: `DD=${state.pullout.drillholeDiameter}mm (CDR=${results.pullout.capacityDemandRatio})`,
+                  },
+                  {
+                    id: 'plate' as CalcModuleId,
+                    step: '3',
+                    color: 'bg-amber-600',
+                    title: isFa ? 'صفحه سر نیل' : 'Bearing Plate',
+                    ok: results.plate.isPassed,
+                    sub: `${state.plate.plateWidth}×${state.plate.plateWidth}cm (t=${state.plate.plateThickness}cm)`,
+                  },
+                  {
+                    id: 'facing' as CalcModuleId,
+                    step: '4',
+                    color: 'bg-indigo-600',
+                    title: isFa ? 'رویه شاتکریت و بتن' : 'Facings',
+                    ok: isFacingModulePassed,
+                    sub: isTemporarySystem
+                      ? `Temp Only (${state.facing.tempThickness}mm)`
+                      : `h=${state.facing.tempThickness}/${state.facing.permThickness}mm`,
+                  },
+                  {
+                    id: 'corrosion' as CalcModuleId,
+                    step: '5',
+                    color: 'bg-teal-600',
+                    title: isFa ? 'حفاظت خوردگی' : 'Corrosion',
+                    ok: results.corrosion.summaryStatus === 'Compliant',
+                    sub: results.corrosion.isExemptTemporary ? 'Temp (Exempt)' : `${state.corrosion.selectedClass}`,
+                  },
+                  {
+                    id: 'cad' as CalcModuleId,
+                    step: '6',
+                    color: 'bg-violet-600',
+                    title: isFa ? 'مقطع CAD' : 'CAD Drawing',
+                    ok: true,
+                    sub: isFa ? 'جزئیات اجرایی' : 'Cross-Section',
+                    badgeText: 'SVG',
+                  },
+                ].map((mod) => {
+                  const isActive = activeCalcModule === mod.id;
+                  return (
+                    <button
+                      key={mod.id}
+                      type="button"
+                      onClick={() => setActiveCalcModule(mod.id)}
+                      className={`p-2.5 min-h-[54px] rounded-xl border text-start transition flex flex-col justify-between cursor-pointer ${
+                        isActive
+                          ? 'bg-slate-800 border-amber-500 text-white shadow-md ring-1 ring-amber-500/40 font-bold'
+                          : 'bg-slate-950/70 hover:bg-slate-800/70 border-slate-800 text-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between w-full mb-1 gap-1">
+                        <span className="font-bold flex items-center gap-1.5 text-[11px] truncate">
+                          <span className={`w-4 h-4 rounded-full ${mod.color} text-white flex items-center justify-center text-[10px] font-black shrink-0`}>
+                            {mod.step}
+                          </span>
+                          <span className="truncate">{mod.title}</span>
+                        </span>
+                        <span
+                          className={`text-[9px] px-1.5 py-0.5 rounded font-bold shrink-0 ${
+                            mod.badgeText
+                              ? 'bg-slate-800 text-cyan-300 border border-slate-700'
+                              : mod.ok
+                              ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                              : 'bg-rose-500/15 text-rose-300 border border-rose-500/30'
+                          }`}
+                        >
+                          {mod.badgeText || (mod.ok ? 'OK' : 'NG')}
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-slate-400 font-mono truncate" dir="ltr">
+                        {mod.sub}
+                      </div>
+                    </button>
+                  );
+                })}
 
-                {/* 2. Pullout */}
-                <button
-                  type="button"
-                  onClick={() => setActiveCalcModule('pullout')}
-                  className={`p-2 rounded-lg border ${isFa ? 'text-right' : 'text-left'} transition flex flex-col justify-between ${
-                    activeCalcModule === 'pullout'
-                      ? 'bg-blue-50 border-blue-600 text-blue-900 shadow-xs ring-1 ring-blue-500 font-bold'
-                      : 'bg-slate-50/70 hover:bg-slate-100 border-slate-200 text-slate-700'
-                  }`}
-                >
-                  <div className="flex items-center justify-between w-full mb-1">
-                    <span className="font-bold flex items-center gap-1 text-[11px]">
-                      <span className="w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] font-black">2</span>
-                      <span>{isFa ? 'بیرون‌کشیدگی دوغاب' : 'Pullout'}</span>
-                    </span>
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold ${results.pullout.isPassed ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
-                      {results.pullout.isPassed ? 'OK' : 'NG'}
-                    </span>
-                  </div>
-                  <div className="text-[10px] text-slate-500 font-mono" dir="ltr">
-                    DD={state.pullout.drillholeDiameter}mm (CDR={results.pullout.capacityDemandRatio})
-                  </div>
-                </button>
-
-                {/* 3. Bearing Plate */}
-                <button
-                  type="button"
-                  onClick={() => setActiveCalcModule('plate')}
-                  className={`p-2 rounded-lg border ${isFa ? 'text-right' : 'text-left'} transition flex flex-col justify-between ${
-                    activeCalcModule === 'plate'
-                      ? 'bg-blue-50 border-blue-600 text-blue-900 shadow-xs ring-1 ring-blue-500 font-bold'
-                      : 'bg-slate-50/70 hover:bg-slate-100 border-slate-200 text-slate-700'
-                  }`}
-                >
-                  <div className="flex items-center justify-between w-full mb-1">
-                    <span className="font-bold flex items-center gap-1 text-[11px]">
-                      <span className="w-4 h-4 rounded-full bg-amber-600 text-white flex items-center justify-center text-[10px] font-black">3</span>
-                      <span>{isFa ? 'صفحه سر نیل' : 'Bearing Plate'}</span>
-                    </span>
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold ${results.plate.isPassed ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
-                      {results.plate.isPassed ? 'OK' : 'NG'}
-                    </span>
-                  </div>
-                  <div className="text-[10px] text-slate-500 font-mono" dir="ltr">
-                    {state.plate.plateWidth}×{state.plate.plateWidth}cm (t={state.plate.plateThickness}cm)
-                  </div>
-                </button>
-
-                {/* 4. Facing */}
-                <button
-                  type="button"
-                  onClick={() => setActiveCalcModule('facing')}
-                  className={`p-2 rounded-lg border ${isFa ? 'text-right' : 'text-left'} transition flex flex-col justify-between ${
-                    activeCalcModule === 'facing'
-                      ? 'bg-blue-50 border-blue-600 text-blue-900 shadow-xs ring-1 ring-blue-500 font-bold'
-                      : 'bg-slate-50/70 hover:bg-slate-100 border-slate-200 text-slate-700'
-                  }`}
-                >
-                  <div className="flex items-center justify-between w-full mb-1">
-                    <span className="font-bold flex items-center gap-1 text-[11px]">
-                      <span className="w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px] font-black">4</span>
-                      <span>{isFa ? 'رویه شاتکریت و بتن' : 'Facings'}</span>
-                    </span>
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold ${results.tempFlexure.isPassed && results.tempPunching.isPassed ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
-                      {results.tempFlexure.isPassed && results.tempPunching.isPassed ? 'OK' : 'NG'}
-                    </span>
-                  </div>
-                  <div className="text-[10px] text-slate-500 font-mono" dir="ltr">
-                    h={state.facing.tempThickness}/{state.facing.permThickness}mm
-                  </div>
-                </button>
-
-                {/* 5. Corrosion */}
-                <button
-                  type="button"
-                  onClick={() => setActiveCalcModule('corrosion')}
-                  className={`p-2 rounded-lg border ${isFa ? 'text-right' : 'text-left'} transition flex flex-col justify-between ${
-                    activeCalcModule === 'corrosion'
-                      ? 'bg-blue-50 border-blue-600 text-blue-900 shadow-xs ring-1 ring-blue-500 font-bold'
-                      : 'bg-slate-50/70 hover:bg-slate-100 border-slate-200 text-slate-700'
-                  }`}
-                >
-                  <div className="flex items-center justify-between w-full mb-1">
-                    <span className="font-bold flex items-center gap-1 text-[11px]">
-                      <span className="w-4 h-4 rounded-full bg-teal-600 text-white flex items-center justify-center text-[10px] font-black">5</span>
-                      <span>{isFa ? 'حفاظت خوردگی' : 'Corrosion'}</span>
-                    </span>
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold ${results.corrosion.isClassAdequate ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
-                      {results.corrosion.isClassAdequate ? 'OK' : 'NG'}
-                    </span>
-                  </div>
-                  <div className="text-[10px] text-slate-500 font-mono" dir="ltr">
-                    {state.corrosion.selectedClass}
-                  </div>
-                </button>
-
-                {/* 6. CAD */}
-                <button
-                  type="button"
-                  onClick={() => setActiveCalcModule('cad')}
-                  className={`p-2 rounded-lg border ${isFa ? 'text-right' : 'text-left'} transition flex flex-col justify-between ${
-                    activeCalcModule === 'cad'
-                      ? 'bg-blue-50 border-blue-600 text-blue-900 shadow-xs ring-1 ring-blue-500 font-bold'
-                      : 'bg-slate-50/70 hover:bg-slate-100 border-slate-200 text-slate-700'
-                  }`}
-                >
-                  <div className="flex items-center justify-between w-full mb-1">
-                    <span className="font-bold flex items-center gap-1 text-[11px]">
-                      <span className="w-4 h-4 rounded-full bg-slate-700 text-white flex items-center justify-center text-[10px] font-black">6</span>
-                      <span>{isFa ? 'مقطع و نقشه CAD' : 'CAD Drawing'}</span>
-                    </span>
-                    <span className="text-[10px] px-1 py-0.2 rounded bg-slate-200 text-slate-700 font-bold">
-                      SVG
-                    </span>
-                  </div>
-                  <div className="text-[10px] text-slate-500">
-                    {isFa ? 'جزئیات اجرایی' : 'Cross-Section'}
-                  </div>
-                </button>
-
-                {/* 7. All Modules (Continuous Scroll View) */}
                 <button
                   type="button"
                   onClick={() => setActiveCalcModule('all')}
-                  className={`p-2 rounded-lg border ${isFa ? 'text-right' : 'text-left'} transition flex flex-col justify-between ${
+                  className={`p-2.5 min-h-[54px] rounded-xl border text-start transition flex flex-col justify-between cursor-pointer ${
                     activeCalcModule === 'all'
-                      ? 'bg-indigo-50 border-indigo-600 text-indigo-900 shadow-xs ring-1 ring-indigo-500 font-bold'
-                      : 'bg-slate-50/70 hover:bg-slate-100 border-slate-200 text-slate-700'
+                      ? 'bg-indigo-950/70 border-indigo-400 text-white shadow-md ring-1 ring-indigo-400/40 font-bold'
+                      : 'bg-slate-950/70 hover:bg-slate-800/70 border-slate-800 text-slate-300'
                   }`}
                 >
-                  <div className="flex items-center justify-between w-full mb-1">
-                    <span className="font-bold flex items-center gap-1 text-[11px]">
-                      <LayoutGrid className="w-3.5 h-3.5 text-indigo-600" />
-                      <span>{isFa ? 'نمای یکپارچه' : 'All Sections'}</span>
-                    </span>
+                  <div className="flex items-center gap-1.5 text-[11px] font-bold">
+                    <LayoutGrid className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                    <span>{isFa ? 'نمای یکپارچه (همه)' : 'All Sections'}</span>
                   </div>
-                  <div className="text-[10px] text-indigo-700 font-semibold">
-                    {isFa ? 'نمایش تمام بخش‌ها' : 'Continuous View'}
+                  <div className="text-[10px] text-indigo-300 font-medium truncate">
+                    {isFa ? 'نمایش پشت‌سرهم ۵ گام + CAD' : 'Continuous view (6 steps)'}
                   </div>
                 </button>
               </div>
             </div>
 
-            {/* MODULE WORKSPACE: RENDER BASED ON ACTIVE SELECTION */}
-            {/* 1. Nail Tendon Tension */}
+            {/* MODULE WORKSPACE */}
             {(activeCalcModule === 'tendon' || activeCalcModule === 'all') && (
-              <div className="space-y-3">
-                <TendonSection
-                  inputs={state.tendon}
-                  results={results.tendon}
-                  onChange={(tendon) => setState({ ...state, tendon })}
-                  lang={lang}
-                  onOpenGuidance={() => setIsGuidanceOpen(true)}
-                />
-                {activeCalcModule === 'tendon' && (
-                  <div className="bg-white rounded-xl p-3 border border-slate-200 shadow-2xs space-y-2">
-                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
-                      <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
-                        <Sliders className="w-3.5 h-3.5 text-blue-600" />
-                        <span>{isFa ? 'گردش کار طراحی — پرش مستقیم به هر گام دلخواه:' : 'Design Workflow — Direct Jump to Any Step:'}</span>
-                      </div>
-                      <div className="text-[11px] text-blue-700 font-medium">
-                        {isFa ? 'برای رفتن مستقیم به هر گام (مثلاً از گام ۱ به ۴) روی دکمه آن کلیک کنید' : 'Click any step button to jump directly without intermediate steps'}
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
-                      <button
-                        type="button"
-                        disabled
-                        className="px-3 py-1.5 text-xs font-semibold rounded-lg flex items-center gap-1 opacity-40 cursor-not-allowed bg-slate-100 text-slate-400"
-                      >
-                        {isFa ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
-                        <span>{isFa ? 'گام قبلی' : 'Previous'}</span>
-                      </button>
-
-                      {/* Direct Jump Step Selector */}
-                      <div className="flex flex-wrap items-center gap-1 sm:gap-1.5">
-                        {[
-                          { id: 'tendon', step: 1, nameFa: 'میلگرد کششی', nameEn: 'Tendon', ok: results.tendon.isPassed },
-                          { id: 'pullout', step: 2, nameFa: 'بیرون‌کشیدگی دوغاب', nameEn: 'Pullout', ok: results.pullout.isPassed },
-                          { id: 'plate', step: 3, nameFa: 'صفحه سر نیل', nameEn: 'Bearing Plate', ok: results.plate.isPassed },
-                          { id: 'facing', step: 4, nameFa: 'رویه شاتکریت و بتن', nameEn: 'Facings', ok: results.tempFlexure.isPassed && results.tempPunching.isPassed },
-                          { id: 'corrosion', step: 5, nameFa: 'حفاظت خوردگی', nameEn: 'Corrosion', ok: results.corrosion.isClassAdequate },
-                          { id: 'cad', step: 6, nameFa: 'نقشه CAD', nameEn: 'CAD Drawing', ok: true },
-                        ].map((item) => (
-                          <button
-                            key={item.id}
-                            type="button"
-                            onClick={() => setActiveCalcModule(item.id as CalcModuleId)}
-                            className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition ${
-                              activeCalcModule === item.id
-                                ? 'bg-blue-600 text-white shadow-xs ring-2 ring-blue-400 font-bold'
-                                : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200'
-                            }`}
-                            title={isFa ? `پرش مستقیم به گام ${item.step}: ${item.nameFa}` : `Jump directly to Step ${item.step}: ${item.nameEn}`}
-                          >
-                            <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-black ${
-                              activeCalcModule === item.id ? 'bg-white text-blue-700' : 'bg-slate-200 text-slate-700'
-                            }`}>
-                              {item.step}
-                            </span>
-                            <span className="hidden sm:inline">{isFa ? item.nameFa : item.nameEn}</span>
-                            {item.id !== 'cad' && (
-                              <span className={`text-[9px] px-1 py-0.2 rounded font-bold ${
-                                item.ok
-                                  ? (activeCalcModule === item.id ? 'bg-emerald-500 text-white' : 'bg-emerald-100 text-emerald-800')
-                                  : (activeCalcModule === item.id ? 'bg-rose-500 text-white' : 'bg-rose-100 text-rose-800')
-                              }`}>
-                                {item.ok ? 'OK' : 'NG'}
-                              </span>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => setActiveCalcModule('pullout')}
-                        className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 transition shadow-xs"
-                      >
-                        <span>{isFa ? 'گام بعدی: بیرون‌کشیدگی دوغاب' : 'Next: Grout Pullout'}</span>
-                        {isFa ? <ChevronLeft className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
+              <TendonSection
+                inputs={state.tendon}
+                results={results.tendon}
+                onChange={(tendon) => updateStateWithHistory({ ...state, tendon })}
+                lang={lang}
+                onOpenGuidance={() => setIsGuidanceOpen(true)}
+              />
             )}
 
-            {/* 2. Borehole & Pullout Resistance */}
             {(activeCalcModule === 'pullout' || activeCalcModule === 'all') && (
-              <div className="space-y-3">
-                <PulloutSection
-                  inputs={state.pullout}
-                  results={results.pullout}
-                  Tmax={state.tendon.Tmax}
-                  loadFactorEV={state.tendon.loadFactorEV}
-                  onChange={(pullout) => setState({ ...state, pullout })}
-                  lang={lang}
-                  onOpenGuidance={() => setIsGuidanceOpen(true)}
-                />
-                {activeCalcModule === 'pullout' && (
-                  <div className="bg-white rounded-xl p-3 border border-slate-200 shadow-2xs space-y-2">
-                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
-                      <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
-                        <Sliders className="w-3.5 h-3.5 text-blue-600" />
-                        <span>{isFa ? 'گردش کار طراحی — پرش مستقیم به هر گام دلخواه:' : 'Design Workflow — Direct Jump to Any Step:'}</span>
-                      </div>
-                      <div className="text-[11px] text-blue-700 font-medium">
-                        {isFa ? 'امکان ورود مستقیم به گام‌های ۱ تا ۶ بدون اجبار به طی مراحل متوالی' : 'Jump directly between steps without passing intermediate ones'}
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
-                      <button
-                        type="button"
-                        onClick={() => setActiveCalcModule('tendon')}
-                        className="px-3 py-1.5 text-xs font-semibold rounded-lg flex items-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
-                      >
-                        {isFa ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
-                        <span>{isFa ? 'گام ۱: میلگرد' : 'Prev: Tendon'}</span>
-                      </button>
-
-                      <div className="flex flex-wrap items-center gap-1 sm:gap-1.5">
-                        {[
-                          { id: 'tendon', step: 1, nameFa: 'میلگرد کششی', nameEn: 'Tendon', ok: results.tendon.isPassed },
-                          { id: 'pullout', step: 2, nameFa: 'بیرون‌کشیدگی دوغاب', nameEn: 'Pullout', ok: results.pullout.isPassed },
-                          { id: 'plate', step: 3, nameFa: 'صفحه سر نیل', nameEn: 'Bearing Plate', ok: results.plate.isPassed },
-                          { id: 'facing', step: 4, nameFa: 'رویه شاتکریت و بتن', nameEn: 'Facings', ok: results.tempFlexure.isPassed && results.tempPunching.isPassed },
-                          { id: 'corrosion', step: 5, nameFa: 'حفاظت خوردگی', nameEn: 'Corrosion', ok: results.corrosion.isClassAdequate },
-                          { id: 'cad', step: 6, nameFa: 'نقشه CAD', nameEn: 'CAD Drawing', ok: true },
-                        ].map((item) => (
-                          <button
-                            key={item.id}
-                            type="button"
-                            onClick={() => setActiveCalcModule(item.id as CalcModuleId)}
-                            className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition ${
-                              activeCalcModule === item.id
-                                ? 'bg-blue-600 text-white shadow-xs ring-2 ring-blue-400 font-bold'
-                                : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200'
-                            }`}
-                          >
-                            <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-black ${
-                              activeCalcModule === item.id ? 'bg-white text-blue-700' : 'bg-slate-200 text-slate-700'
-                            }`}>
-                              {item.step}
-                            </span>
-                            <span className="hidden sm:inline">{isFa ? item.nameFa : item.nameEn}</span>
-                            {item.id !== 'cad' && (
-                              <span className={`text-[9px] px-1 py-0.2 rounded font-bold ${
-                                item.ok
-                                  ? (activeCalcModule === item.id ? 'bg-emerald-500 text-white' : 'bg-emerald-100 text-emerald-800')
-                                  : (activeCalcModule === item.id ? 'bg-rose-500 text-white' : 'bg-rose-100 text-rose-800')
-                              }`}>
-                                {item.ok ? 'OK' : 'NG'}
-                              </span>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => setActiveCalcModule('plate')}
-                        className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 transition shadow-xs"
-                      >
-                        <span>{isFa ? 'گام بعدی: صفحه سر نیل' : 'Next: Bearing Plate'}</span>
-                        {isFa ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
+              <PulloutSection
+                inputs={state.pullout}
+                results={results.pullout}
+                Tmax={state.tendon.Tmax}
+                loadFactorEV={state.tendon.loadFactorEV}
+                onChange={(pullout) => updateStateWithHistory({ ...state, pullout })}
+                lang={lang}
+                onOpenGuidance={() => setIsGuidanceOpen(true)}
+              />
             )}
 
-            {/* 3. Nail Head Bearing Plate */}
             {(activeCalcModule === 'plate' || activeCalcModule === 'all') && (
-              <div className="space-y-3">
-                <BearingPlateSection
-                  inputs={state.plate}
-                  results={results.plate}
-                  T0={results.T0}
-                  onChange={(plate) => setState({ ...state, plate })}
-                  lang={lang}
-                  onOpenGuidance={() => setIsGuidanceOpen(true)}
-                />
-                {activeCalcModule === 'plate' && (
-                  <div className="bg-white rounded-xl p-3 border border-slate-200 shadow-2xs space-y-2">
-                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
-                      <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
-                        <Sliders className="w-3.5 h-3.5 text-blue-600" />
-                        <span>{isFa ? 'گردش کار طراحی — پرش مستقیم به هر گام دلخواه:' : 'Design Workflow — Direct Jump to Any Step:'}</span>
-                      </div>
-                      <div className="text-[11px] text-blue-700 font-medium">
-                        {isFa ? 'امکان ورود مستقیم به گام‌های ۱ تا ۶ بدون اجبار به طی مراحل متوالی' : 'Jump directly between steps without passing intermediate ones'}
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
-                      <button
-                        type="button"
-                        onClick={() => setActiveCalcModule('pullout')}
-                        className="px-3 py-1.5 text-xs font-semibold rounded-lg flex items-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
-                      >
-                        {isFa ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
-                        <span>{isFa ? 'گام ۲: بیرون‌کشیدگی' : 'Prev: Pullout'}</span>
-                      </button>
-
-                      <div className="flex flex-wrap items-center gap-1 sm:gap-1.5">
-                        {[
-                          { id: 'tendon', step: 1, nameFa: 'میلگرد کششی', nameEn: 'Tendon', ok: results.tendon.isPassed },
-                          { id: 'pullout', step: 2, nameFa: 'بیرون‌کشیدگی دوغاب', nameEn: 'Pullout', ok: results.pullout.isPassed },
-                          { id: 'plate', step: 3, nameFa: 'صفحه سر نیل', nameEn: 'Bearing Plate', ok: results.plate.isPassed },
-                          { id: 'facing', step: 4, nameFa: 'رویه شاتکریت و بتن', nameEn: 'Facings', ok: results.tempFlexure.isPassed && results.tempPunching.isPassed },
-                          { id: 'corrosion', step: 5, nameFa: 'حفاظت خوردگی', nameEn: 'Corrosion', ok: results.corrosion.isClassAdequate },
-                          { id: 'cad', step: 6, nameFa: 'نقشه CAD', nameEn: 'CAD Drawing', ok: true },
-                        ].map((item) => (
-                          <button
-                            key={item.id}
-                            type="button"
-                            onClick={() => setActiveCalcModule(item.id as CalcModuleId)}
-                            className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition ${
-                              activeCalcModule === item.id
-                                ? 'bg-blue-600 text-white shadow-xs ring-2 ring-blue-400 font-bold'
-                                : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200'
-                            }`}
-                          >
-                            <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-black ${
-                              activeCalcModule === item.id ? 'bg-white text-blue-700' : 'bg-slate-200 text-slate-700'
-                            }`}>
-                              {item.step}
-                            </span>
-                            <span className="hidden sm:inline">{isFa ? item.nameFa : item.nameEn}</span>
-                            {item.id !== 'cad' && (
-                              <span className={`text-[9px] px-1 py-0.2 rounded font-bold ${
-                                item.ok
-                                  ? (activeCalcModule === item.id ? 'bg-emerald-500 text-white' : 'bg-emerald-100 text-emerald-800')
-                                  : (activeCalcModule === item.id ? 'bg-rose-500 text-white' : 'bg-rose-100 text-rose-800')
-                              }`}>
-                                {item.ok ? 'OK' : 'NG'}
-                              </span>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => setActiveCalcModule('facing')}
-                        className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 transition shadow-xs"
-                      >
-                        <span>{isFa ? 'گام بعدی: رویه شاتکریت و بتن' : 'Next: Facing Design'}</span>
-                        {isFa ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
+              <BearingPlateSection
+                inputs={state.plate}
+                results={results.plate}
+                T0={results.T0}
+                onChange={(plate) => updateStateWithHistory({ ...state, plate })}
+                lang={lang}
+                onOpenGuidance={() => setIsGuidanceOpen(true)}
+              />
             )}
 
-            {/* 4. Facings: Flexure, Punching Shear & Headed Studs */}
             {(activeCalcModule === 'facing' || activeCalcModule === 'all') && (
-              <div className="space-y-3">
-                <FacingSection
-                  inputs={state.facing}
-                  tempFlexure={results.tempFlexure}
-                  tempPunching={results.tempPunching}
-                  permFlexure={results.permFlexure}
-                  permPunching={results.permPunching}
-                  headedStuds={results.headedStuds}
-                  T0={results.T0}
-                  onChange={(facing) => setState({ ...state, facing })}
-                  lang={lang}
-                  onOpenGuidance={() => setIsGuidanceOpen(true)}
-                />
-                {activeCalcModule === 'facing' && (
-                  <div className="bg-white rounded-xl p-3 border border-slate-200 shadow-2xs space-y-2">
-                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
-                      <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
-                        <Sliders className="w-3.5 h-3.5 text-blue-600" />
-                        <span>{isFa ? 'گردش کار طراحی — پرش مستقیم به هر گام دلخواه:' : 'Design Workflow — Direct Jump to Any Step:'}</span>
-                      </div>
-                      <div className="text-[11px] text-blue-700 font-medium">
-                        {isFa ? 'امکان ورود مستقیم به گام‌های ۱ تا ۶ بدون اجبار به طی مراحل متوالی' : 'Jump directly between steps without passing intermediate ones'}
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
-                      <button
-                        type="button"
-                        onClick={() => setActiveCalcModule('plate')}
-                        className="px-3 py-1.5 text-xs font-semibold rounded-lg flex items-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
-                      >
-                        {isFa ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
-                        <span>{isFa ? 'گام ۳: صفحه سر نیل' : 'Prev: Bearing Plate'}</span>
-                      </button>
-
-                      <div className="flex flex-wrap items-center gap-1 sm:gap-1.5">
-                        {[
-                          { id: 'tendon', step: 1, nameFa: 'میلگرد کششی', nameEn: 'Tendon', ok: results.tendon.isPassed },
-                          { id: 'pullout', step: 2, nameFa: 'بیرون‌کشیدگی دوغاب', nameEn: 'Pullout', ok: results.pullout.isPassed },
-                          { id: 'plate', step: 3, nameFa: 'صفحه سر نیل', nameEn: 'Bearing Plate', ok: results.plate.isPassed },
-                          { id: 'facing', step: 4, nameFa: 'رویه شاتکریت و بتن', nameEn: 'Facings', ok: results.tempFlexure.isPassed && results.tempPunching.isPassed },
-                          { id: 'corrosion', step: 5, nameFa: 'حفاظت خوردگی', nameEn: 'Corrosion', ok: results.corrosion.isClassAdequate },
-                          { id: 'cad', step: 6, nameFa: 'نقشه CAD', nameEn: 'CAD Drawing', ok: true },
-                        ].map((item) => (
-                          <button
-                            key={item.id}
-                            type="button"
-                            onClick={() => setActiveCalcModule(item.id as CalcModuleId)}
-                            className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition ${
-                              activeCalcModule === item.id
-                                ? 'bg-blue-600 text-white shadow-xs ring-2 ring-blue-400 font-bold'
-                                : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200'
-                            }`}
-                          >
-                            <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-black ${
-                              activeCalcModule === item.id ? 'bg-white text-blue-700' : 'bg-slate-200 text-slate-700'
-                            }`}>
-                              {item.step}
-                            </span>
-                            <span className="hidden sm:inline">{isFa ? item.nameFa : item.nameEn}</span>
-                            {item.id !== 'cad' && (
-                              <span className={`text-[9px] px-1 py-0.2 rounded font-bold ${
-                                item.ok
-                                  ? (activeCalcModule === item.id ? 'bg-emerald-500 text-white' : 'bg-emerald-100 text-emerald-800')
-                                  : (activeCalcModule === item.id ? 'bg-rose-500 text-white' : 'bg-rose-100 text-rose-800')
-                              }`}>
-                                {item.ok ? 'OK' : 'NG'}
-                              </span>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => setActiveCalcModule('corrosion')}
-                        className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 transition shadow-xs"
-                      >
-                        <span>{isFa ? 'گام بعدی: حفاظت خوردگی' : 'Next: Corrosion'}</span>
-                        {isFa ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
+              <FacingSection
+                inputs={state.facing}
+                tempFlexure={results.tempFlexure}
+                tempPunching={results.tempPunching}
+                permFlexure={results.permFlexure}
+                permPunching={results.permPunching}
+                headedStuds={results.headedStuds}
+                T0={results.T0}
+                isTemporarySystem={isTemporarySystem}
+                requestedSubTab={facingTargetSubTab}
+                onChange={(facing) => updateStateWithHistory({ ...state, facing })}
+                onGoToSystemSpecs={() => setActiveMainTab('system')}
+                lang={lang}
+                onOpenGuidance={() => setIsGuidanceOpen(true)}
+              />
             )}
 
-            {/* 5. Soil Corrosiveness & Permanent Protection */}
             {(activeCalcModule === 'corrosion' || activeCalcModule === 'all') && (
-              <div className="space-y-3">
-                <CorrosionSection
-                  inputs={state.corrosion}
-                  results={results.corrosion}
-                  barDiameter={state.tendon.barDiameter}
-                  onChange={(corrosion) => setState({ ...state, corrosion })}
-                  lang={lang}
-                  onOpenGuidance={() => setIsGuidanceOpen(true)}
-                />
-                {activeCalcModule === 'corrosion' && (
-                  <div className="bg-white rounded-xl p-3 border border-slate-200 shadow-2xs space-y-2">
-                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
-                      <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
-                        <Sliders className="w-3.5 h-3.5 text-blue-600" />
-                        <span>{isFa ? 'گردش کار طراحی — پرش مستقیم به هر گام دلخواه:' : 'Design Workflow — Direct Jump to Any Step:'}</span>
-                      </div>
-                      <div className="text-[11px] text-blue-700 font-medium">
-                        {isFa ? 'امکان ورود مستقیم به گام‌های ۱ تا ۶ بدون اجبار به طی مراحل متوالی' : 'Jump directly between steps without passing intermediate ones'}
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
-                      <button
-                        type="button"
-                        onClick={() => setActiveCalcModule('facing')}
-                        className="px-3 py-1.5 text-xs font-semibold rounded-lg flex items-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
-                      >
-                        {isFa ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
-                        <span>{isFa ? 'گام ۴: رویه فیس' : 'Prev: Facing'}</span>
-                      </button>
-
-                      <div className="flex flex-wrap items-center gap-1 sm:gap-1.5">
-                        {[
-                          { id: 'tendon', step: 1, nameFa: 'میلگرد کششی', nameEn: 'Tendon', ok: results.tendon.isPassed },
-                          { id: 'pullout', step: 2, nameFa: 'بیرون‌کشیدگی دوغاب', nameEn: 'Pullout', ok: results.pullout.isPassed },
-                          { id: 'plate', step: 3, nameFa: 'صفحه سر نیل', nameEn: 'Bearing Plate', ok: results.plate.isPassed },
-                          { id: 'facing', step: 4, nameFa: 'رویه شاتکریت و بتن', nameEn: 'Facings', ok: results.tempFlexure.isPassed && results.tempPunching.isPassed },
-                          { id: 'corrosion', step: 5, nameFa: 'حفاظت خوردگی', nameEn: 'Corrosion', ok: results.corrosion.isClassAdequate },
-                          { id: 'cad', step: 6, nameFa: 'نقشه CAD', nameEn: 'CAD Drawing', ok: true },
-                        ].map((item) => (
-                          <button
-                            key={item.id}
-                            type="button"
-                            onClick={() => setActiveCalcModule(item.id as CalcModuleId)}
-                            className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition ${
-                              activeCalcModule === item.id
-                                ? 'bg-blue-600 text-white shadow-xs ring-2 ring-blue-400 font-bold'
-                                : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200'
-                            }`}
-                          >
-                            <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-black ${
-                              activeCalcModule === item.id ? 'bg-white text-blue-700' : 'bg-slate-200 text-slate-700'
-                            }`}>
-                              {item.step}
-                            </span>
-                            <span className="hidden sm:inline">{isFa ? item.nameFa : item.nameEn}</span>
-                            {item.id !== 'cad' && (
-                              <span className={`text-[9px] px-1 py-0.2 rounded font-bold ${
-                                item.ok
-                                  ? (activeCalcModule === item.id ? 'bg-emerald-500 text-white' : 'bg-emerald-100 text-emerald-800')
-                                  : (activeCalcModule === item.id ? 'bg-rose-500 text-white' : 'bg-rose-100 text-rose-800')
-                              }`}>
-                                {item.ok ? 'OK' : 'NG'}
-                              </span>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => setActiveCalcModule('cad')}
-                        className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 transition shadow-xs"
-                      >
-                        <span>{isFa ? 'مشاهده مقطع و نقشه CAD' : 'View CAD Section'}</span>
-                        {isFa ? <ChevronLeft className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
+              <CorrosionSection
+                inputs={state.corrosion}
+                results={results.corrosion}
+                barDiameter={state.tendon.barDiameter}
+                onChange={(corrosion) => updateStateWithHistory({ ...state, corrosion })}
+                onGoToSystemSpecs={() => setActiveMainTab('system')}
+                lang={lang}
+                onOpenGuidance={() => setIsGuidanceOpen(true)}
+              />
             )}
 
-            {/* 6. Embedded CAD Cross-Section */}
             {(activeCalcModule === 'cad' || activeCalcModule === 'all') && (
-              <div className="space-y-3">
-                <InteractiveCrossSectionSvg state={state} results={results} lang={lang} />
-                {activeCalcModule === 'cad' && (
-                  <div className="bg-white rounded-xl p-3 border border-slate-200 shadow-2xs space-y-2">
-                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
-                      <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
-                        <Sliders className="w-3.5 h-3.5 text-blue-600" />
-                        <span>{isFa ? 'گردش کار طراحی — پرش مستقیم به هر گام دلخواه:' : 'Design Workflow — Direct Jump to Any Step:'}</span>
-                      </div>
-                      <div className="text-[11px] text-blue-700 font-medium">
-                        {isFa ? 'امکان ورود مستقیم به گام‌های ۱ تا ۶ بدون اجبار به طی مراحل متوالی' : 'Jump directly between steps without passing intermediate ones'}
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
-                      <button
-                        type="button"
-                        onClick={() => setActiveCalcModule('corrosion')}
-                        className="px-3 py-1.5 text-xs font-semibold rounded-lg flex items-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
-                      >
-                        {isFa ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
-                        <span>{isFa ? 'گام ۵: حفاظت خوردگی' : 'Prev: Corrosion'}</span>
-                      </button>
+              <InteractiveCrossSectionSvg state={state} results={results} lang={lang} />
+            )}
 
-                      <div className="flex flex-wrap items-center gap-1 sm:gap-1.5">
-                        {[
-                          { id: 'tendon', step: 1, nameFa: 'میلگرد کششی', nameEn: 'Tendon', ok: results.tendon.isPassed },
-                          { id: 'pullout', step: 2, nameFa: 'بیرون‌کشیدگی دوغاب', nameEn: 'Pullout', ok: results.pullout.isPassed },
-                          { id: 'plate', step: 3, nameFa: 'صفحه سر نیل', nameEn: 'Bearing Plate', ok: results.plate.isPassed },
-                          { id: 'facing', step: 4, nameFa: 'رویه شاتکریت و بتن', nameEn: 'Facings', ok: results.tempFlexure.isPassed && results.tempPunching.isPassed },
-                          { id: 'corrosion', step: 5, nameFa: 'حفاظت خوردگی', nameEn: 'Corrosion', ok: results.corrosion.isClassAdequate },
-                          { id: 'cad', step: 6, nameFa: 'نقشه CAD', nameEn: 'CAD Drawing', ok: true },
-                        ].map((item) => (
-                          <button
-                            key={item.id}
-                            type="button"
-                            onClick={() => setActiveCalcModule(item.id as CalcModuleId)}
-                            className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition ${
-                              activeCalcModule === item.id
-                                ? 'bg-blue-600 text-white shadow-xs ring-2 ring-blue-400 font-bold'
-                                : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200'
-                            }`}
-                          >
-                            <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-black ${
-                              activeCalcModule === item.id ? 'bg-white text-blue-700' : 'bg-slate-200 text-slate-700'
-                            }`}>
-                              {item.step}
-                            </span>
-                            <span className="hidden sm:inline">{isFa ? item.nameFa : item.nameEn}</span>
-                            {item.id !== 'cad' && (
-                              <span className={`text-[9px] px-1 py-0.2 rounded font-bold ${
-                                item.ok
-                                  ? (activeCalcModule === item.id ? 'bg-emerald-500 text-white' : 'bg-emerald-100 text-emerald-800')
-                                  : (activeCalcModule === item.id ? 'bg-rose-500 text-white' : 'bg-rose-100 text-rose-800')
-                              }`}>
-                                {item.ok ? 'OK' : 'NG'}
-                              </span>
-                            )}
-                          </button>
-                        ))}
-                      </div>
+            {/* SINGLE UNIFIED BOTTOM WORKFLOW JUMP BAR */}
+            {activeCalcModule !== 'all' && (
+              <div className="bg-slate-900/90 rounded-2xl p-3 border border-slate-800 shadow-lg flex flex-wrap items-center justify-between gap-2">
+                <button
+                  type="button"
+                  disabled={!prevModule}
+                  onClick={() => prevModule && setActiveCalcModule(prevModule)}
+                  className="px-3.5 py-2 min-h-[40px] text-xs font-semibold rounded-xl flex items-center gap-1.5 bg-slate-950 hover:bg-slate-800 disabled:opacity-40 text-slate-200 border border-slate-800 transition cursor-pointer"
+                >
+                  {isFa ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+                  <span>{isFa ? 'گام قبلی' : 'Previous'}</span>
+                </button>
 
-                      <button
-                        type="button"
-                        onClick={() => setIsReportOpen(true)}
-                        className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg flex items-center gap-1.5 transition shadow-xs text-xs"
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {workflowSteps.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setActiveCalcModule(item.id)}
+                      className={`px-2.5 py-1.5 min-h-[36px] rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer ${
+                        activeCalcModule === item.id
+                          ? 'bg-amber-500 text-slate-950 font-bold shadow-md shadow-amber-500/20'
+                          : 'bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800'
+                      }`}
+                    >
+                      <span
+                        className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-black ${
+                          activeCalcModule === item.id ? 'bg-slate-950 text-amber-400' : 'bg-slate-800 text-slate-300'
+                        }`}
                       >
-                        <FileCheck className="w-4 h-4" />
-                        <span>{isFa ? 'چاپ دفترچه محاسبات فنی (PDF)' : 'Calculation Booklet (PDF)'}</span>
-                      </button>
-                    </div>
-                  </div>
+                        {item.step}
+                      </span>
+                      <span className="hidden sm:inline">{isFa ? item.nameFa : item.nameEn}</span>
+                      {item.id !== 'cad' && (
+                        <span
+                          className={`text-[9px] px-1 rounded font-bold ${
+                            item.ok
+                              ? activeCalcModule === item.id
+                                ? 'bg-emerald-950 text-emerald-300'
+                                : 'bg-emerald-500/15 text-emerald-300'
+                              : activeCalcModule === item.id
+                              ? 'bg-rose-950 text-rose-300'
+                              : 'bg-rose-500/15 text-rose-300'
+                          }`}
+                        >
+                          {item.ok ? 'OK' : 'NG'}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+
+                {nextModule ? (
+                  <button
+                    type="button"
+                    onClick={() => setActiveCalcModule(nextModule)}
+                    className="px-4 py-2 min-h-[40px] bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition shadow-md cursor-pointer"
+                  >
+                    <span>{isFa ? 'گام بعدی' : 'Next Step'}</span>
+                    {isFa ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setActiveMainTab('report')}
+                    className="px-4 py-2 min-h-[40px] bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-xl flex items-center gap-1.5 transition shadow-md text-xs cursor-pointer"
+                  >
+                    <FileCheck className="w-4 h-4" />
+                    <span>{isFa ? 'داشبورد و دفترچه محاسبات (PDF)' : 'Dashboard & Calculation Booklet'}</span>
+                  </button>
                 )}
               </div>
             )}
           </div>
         )}
 
-        {/* TAB 2: STEP-BY-STEP PARAMETER SELECTION GUIDE */}
-        {activeMainTab === 'guide' && (
-          <div className="space-y-6">
-            <StepByStepGuide lang={lang} />
-          </div>
-        )}
+        {/* TOP-LEVEL TAB 4: STEP-BY-STEP PARAMETER SELECTION GUIDE */}
+        {activeMainTab === 'guide' && <StepByStepGuide lang={lang} />}
 
-        {/* TAB 3: THEORY, REFERENCES & BILINGUAL GLOSSARY */}
-        {activeMainTab === 'refs' && (
-          <div className="space-y-6">
-            <TechnicalReferencesAndGlossary lang={lang} />
-          </div>
-        )}
+        {/* TOP-LEVEL TAB 5: THEORY, REFERENCES & BILINGUAL GLOSSARY */}
+        {activeMainTab === 'refs' && <TechnicalReferencesAndGlossary lang={lang} />}
 
-        {/* TAB 4: CAD CROSS-SECTIONS */}
-        {activeMainTab === 'cad' && (
-          <div className="space-y-6">
-            <InteractiveCrossSectionSvg state={state} results={results} lang={lang} />
+        {/* TOP-LEVEL TAB 6: CAD CROSS-SECTIONS */}
+        {activeMainTab === 'cad' && <InteractiveCrossSectionSvg state={state} results={results} lang={lang} />}
+
+        {/* TOP-LEVEL TAB 7: HYPERLINKED ENGINEERING DASHBOARD & INLINE CALCULATION BOOKLET */}
+        {activeMainTab === 'report' && (
+          <div className="space-y-4">
+            {/* EXECUTIVE HYPERLINKED DASHBOARD (Hidden during paper print) */}
+            <div className="bg-slate-900/90 rounded-2xl border border-slate-800 shadow-xl overflow-hidden print:hidden">
+              <div className="px-4 py-2.5 bg-slate-950/70 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-2.5">
+                  <Activity className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span className="font-bold text-slate-100">
+                    {isFa
+                      ? 'داشبورد نظارت مهندسی و دسترسی سریع (جهت بررسی روی هر آیتم کلیک کنید)'
+                      : 'Engineering Supervision Dashboard (Click any item to inspect)'}
+                  </span>
+                  <span
+                    className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${
+                      results.isOverallPassed
+                        ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/35'
+                        : 'bg-rose-500/15 text-rose-300 border-rose-500/35'
+                    }`}
+                  >
+                    {results.isOverallPassed ? (isFa ? 'کلیه کنترل‌ها OK' : 'ALL CHECKS PASS') : isFa ? 'نیازمند اصلاح (NG)' : 'REVISION REQ.'}
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsSummaryExpanded(!isSummaryExpanded)}
+                    className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold flex items-center gap-1.5 transition cursor-pointer border ${
+                      isSummaryExpanded
+                        ? 'bg-amber-500/15 text-amber-300 border-amber-500/40'
+                        : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
+                    }`}
+                  >
+                    <span>{isFa ? 'خلاصه شاخص‌ها و CDR' : 'Executive CDR'}</span>
+                    {isSummaryExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveMainTab('project')}
+                    className="px-3 py-1.5 rounded-lg text-[11px] font-semibold flex items-center gap-1.5 transition cursor-pointer border bg-slate-900 hover:bg-slate-800 text-sky-300 border-slate-700 hover:border-sky-500/40"
+                  >
+                    <Building2 className="w-3.5 h-3.5" />
+                    <span>{isFa ? 'مشخصات پروژه' : 'Project Info'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveMainTab('system')}
+                    className="px-3 py-1.5 rounded-lg text-[11px] font-semibold flex items-center gap-1.5 transition cursor-pointer border bg-slate-900 hover:bg-slate-800 text-cyan-300 border-slate-700 hover:border-cyan-500/40"
+                  >
+                    <Compass className="w-3.5 h-3.5" />
+                    <span>
+                      {isFa
+                        ? `سیستم نیلینگ (${isTemporarySystem ? 'موقت' : 'دائم'})`
+                        : `Nailing System (${isTemporarySystem ? 'Temp' : 'Perm'})`}
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              {isSummaryExpanded && (
+                <div className="p-3 bg-slate-950/40">
+                  <DesignSummaryCard
+                    state={state}
+                    results={results}
+                    lang={lang}
+                    onNavigate={handleDashboardNavigate}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* INLINE CALCULATION BOOKLET (NEVER BLOCKS NAVIGATION) */}
+            <ReportModal
+              isOpen={true}
+              inline={true}
+              state={state}
+              results={results}
+              lang={lang}
+            />
           </div>
         )}
       </main>
 
-      {/* 3. WINDOWS DESKTOP STATUS BAR */}
-      <footer className="bg-slate-900 text-slate-300 border-t border-slate-700 px-4 py-2 text-xs flex flex-wrap items-center justify-between gap-3 select-none">
-        <div className="flex items-center gap-4 text-[11px] font-mono">
+      {/* 3. MOBILE / ANDROID THUMB-FRIENDLY BOTTOM NAVIGATION BAR (< md) */}
+      <nav
+        dir={isFa ? 'rtl' : 'ltr'}
+        className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-slate-950/95 backdrop-blur-md border-t border-slate-800 px-1 pt-1 pb-safe shadow-2xl print:hidden"
+        aria-label={isFa ? 'منوی پایین موبایل' : 'Mobile Navigation'}
+      >
+        <div className="grid grid-cols-7 gap-0.5">
+          {[
+            { id: 'project' as MainTabId, icon: Building2, label: isFa ? 'پروژه' : 'Project' },
+            { id: 'system' as MainTabId, icon: Compass, label: isFa ? 'سیستم' : 'System' },
+            { id: 'calc' as MainTabId, icon: Sliders, label: isFa ? 'محاسبات' : 'Calc' },
+            { id: 'guide' as MainTabId, icon: Sparkles, label: isFa ? 'راهنما' : 'Guide' },
+            { id: 'refs' as MainTabId, icon: BookOpen, label: isFa ? 'مراجع' : 'Refs' },
+            { id: 'cad' as MainTabId, icon: Layers, label: 'CAD' },
+            { id: 'report' as MainTabId, icon: FileText, label: isFa ? 'PDF' : 'PDF' },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const active = activeMainTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveMainTab(tab.id)}
+                className={`min-h-[48px] rounded-lg flex flex-col items-center justify-center gap-0.5 text-[9.5px] font-bold transition cursor-pointer ${
+                  active
+                    ? 'bg-amber-500/15 text-amber-300 border border-amber-500/35'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Icon className="w-4 h-4 shrink-0" />
+                <span className="truncate max-w-full px-0.5">{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+
+      {/* 4. DESKTOP WINDOWS STATUS BAR (Hidden on mobile to preserve thumb nav space) */}
+      <footer className="hidden md:flex bg-slate-950 text-slate-300 border-t border-slate-800 px-4 py-2 text-xs items-center justify-between gap-3 select-none print:hidden">
+        <div className="flex items-center gap-4 text-[11px] font-mono tabular-nums">
           <span className="flex items-center gap-1.5">
-            <Cpu className="w-3.5 h-3.5 text-blue-400" />
+            <Cpu className="w-3.5 h-3.5 text-amber-400" />
             <span>AASHTO LRFD (2020) & FHWA-NHI-14-007</span>
           </span>
-          <span className="hidden sm:inline text-slate-600">|</span>
-          <span className="hidden sm:inline">
+          <span className="text-slate-700">|</span>
+          <span>
             Tmax: <strong className="text-white">{state.tendon.Tmax} kN</strong> (T0 = {results.T0} kN)
           </span>
-          <span className="hidden md:inline text-slate-600">|</span>
-          <span className="hidden md:inline">
-            Tendon: <strong className="text-white">φ{state.tendon.barDiameter} mm</strong>
+          <span className="text-slate-700">|</span>
+          <span>
+            Tendon: <strong className="text-sky-300">φ{state.tendon.barDiameter} mm</strong>
           </span>
-          <span className="hidden md:inline text-slate-600">|</span>
-          <span className="hidden md:inline">
-            Hole: <strong className="text-white">{state.pullout.drillholeDiameter} mm</strong>
-          </span>
-          <span className="hidden lg:inline text-slate-600">|</span>
+          <span className="hidden lg:inline text-slate-700">|</span>
           <span className="hidden lg:inline">
-            Plate: <strong className="text-white">{state.plate.plateWidth}×{state.plate.plateWidth} cm</strong>
+            Hole: <strong className="text-teal-300">{state.pullout.drillholeDiameter} mm</strong>
           </span>
-          <span className="hidden lg:inline text-slate-600">|</span>
+          <span className="hidden lg:inline text-slate-700">|</span>
           <span className="hidden lg:inline">
-            Protection: <strong className="text-emerald-400">{state.corrosion.selectedClass}</strong>
+            Plate: <strong className="text-amber-300">{state.plate.plateWidth}×{state.plate.plateWidth} cm</strong>
+          </span>
+          <span className="hidden lg:inline text-slate-700">|</span>
+          <span className="hidden lg:inline">
+            Class:{' '}
+            <strong className="text-emerald-300">
+              {results.corrosion.isExemptTemporary ? (isFa ? 'موقت (معاف)' : 'Exempt (Temp)') : state.corrosion.selectedClass}
+            </strong>
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
-          <div
-            className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 ${
-              results.isOverallPassed ? 'bg-emerald-900 text-emerald-300' : 'bg-rose-900 text-rose-300'
-            }`}
-          >
-            {results.isOverallPassed ? <CheckCircle className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
-            <span>{results.isOverallPassed ? 'AASHTO COMPLIANT (OK)' : 'CRITERIA NOT MET (NG)'}</span>
-          </div>
+        <div
+          className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold flex items-center gap-1 border ${
+            results.isOverallPassed
+              ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/35'
+              : 'bg-rose-500/15 text-rose-300 border-rose-500/35'
+          }`}
+        >
+          {results.isOverallPassed ? <CheckCircle className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
+          <span>{results.isOverallPassed ? 'AASHTO COMPLIANT (OK)' : 'CRITERIA NOT MET (NG)'}</span>
         </div>
       </footer>
 
       {/* MODALS */}
-      {/* 1. Project Management Save / Load Archive Modal */}
       <ProjectManagerModal
         isOpen={isProjectManagerOpen}
         onClose={() => setIsProjectManagerOpen(false)}
         currentState={state}
         currentResults={results}
-        onLoadProject={(loadedState) => setState(loadedState)}
+        onLoadProject={updateStateWithHistory}
         lang={lang}
       />
 
-      {/* 2. Geotechnical Guidance Handbook Modal */}
-      <GuidanceModal
-        isOpen={isGuidanceOpen}
-        onClose={() => setIsGuidanceOpen(false)}
-        lang={lang}
-      />
+      <GuidanceModal isOpen={isGuidanceOpen} onClose={() => setIsGuidanceOpen(false)} lang={lang} />
 
-      {/* 3. Formal Calculation Booklet PDF & Print Modal */}
-      <ReportModal
-        isOpen={isReportOpen}
-        onClose={() => setIsReportOpen(false)}
-        state={state}
-        results={results}
-        lang={lang}
-      />
+      <WindowsExeModal isOpen={isWindowsModalOpen} onClose={() => setIsWindowsModalOpen(false)} lang={lang} />
+
+      <AndroidInstallModal isOpen={isAndroidModalOpen} onClose={() => setIsAndroidModalOpen(false)} lang={lang} />
+
+      <AboutModal isOpen={isAboutModalOpen} onClose={() => setIsAboutModalOpen(false)} lang={lang} />
     </div>
   );
 }

@@ -1,0 +1,41 @@
+{
+  "appId": "com.geomechanics.soilnail",
+  "productName": "SoilNailDesignSuite",
+  "copyright": "Copyright © 2026 Engineering Software Development",
+  "directories": {
+    "output": "release",
+    "buildResources": "build"
+  },
+  "files": [
+    "dist/**/*",
+    "electron/**/*",
+    "package.json"
+  ],
+  "win": {
+    "icon": "build/icon.ico",
+    "executableName": "SoilNailDesignSuite",
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64"]
+      },
+      {
+        "target": "portable",
+        "arch": ["x64"]
+      }
+    ],
+    "artifactName": "SoilNailDesignSuite-${arch}.${ext}"
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "Soil Nail Design Suite",
+    "installerIcon": "build/icon.ico",
+    "uninstallerIcon": "build/icon.ico"
+  },
+  "portable": {
+    "artifactName": "SoilNailDesignSuite-Portable-${arch}.exe"
+  }
+}

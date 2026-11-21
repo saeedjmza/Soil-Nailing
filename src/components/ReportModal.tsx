@@ -5,6 +5,8 @@
  */
 import React, { useRef, useState } from 'react';
 import { DesignState, FullCalculationResults, Language } from '../types/nailing';
+import { DEFAULT_SYSTEM_SPECS } from '../constants/standardsData';
+import { DEFAULT_DEVELOPER_PROFILE, DEFAULT_DEVELOPER_GITHUB } from './DeveloperProfileSection';
 import { TRANSLATIONS } from '../utils/translations';
 import {
   FileText,
@@ -18,13 +20,15 @@ import {
   User,
   Building2,
   FileCheck,
+  Cpu,
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
 interface Props {
   isOpen: boolean;
-  onClose: () => void;
+  onClose?: () => void;
+  inline?: boolean;
   state: DesignState;
   results: FullCalculationResults;
   lang: Language;
@@ -33,6 +37,7 @@ interface Props {
 export const ReportModal: React.FC<Props> = ({
   isOpen,
   onClose,
+  inline = false,
   state,
   results,
   lang,
@@ -40,10 +45,11 @@ export const ReportModal: React.FC<Props> = ({
   const [isExporting, setIsExporting] = useState(false);
   const reportRef = useRef<HTMLDivElement>(null);
 
-  if (!isOpen) return null;
+  if (!inline && !isOpen) return null;
   const isFa = lang === 'fa';
   const t = TRANSLATIONS[lang];
   const { metadata, tendon, pullout, plate, facing, corrosion } = state;
+  const sys = state.system || DEFAULT_SYSTEM_SPECS;
 
   const handlePrint = () => {
     window.print();
@@ -94,10 +100,22 @@ export const ReportModal: React.FC<Props> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center z-50 p-2 sm:p-4 print:p-0 print:static print:bg-white">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[95vh] flex flex-col overflow-hidden border border-slate-300 print:max-w-none print:max-h-none print:shadow-none print:border-none print:rounded-none">
+    <div
+      className={
+        inline
+          ? 'print:p-0 print:bg-white'
+          : 'fixed inset-0 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4 print:p-0 print:static print:bg-white'
+      }
+    >
+      <div
+        className={
+          inline
+            ? 'bg-slate-900 rounded-2xl shadow-xl w-full flex flex-col overflow-hidden border border-slate-800 print:max-w-none print:max-h-none print:shadow-none print:border-none print:rounded-none print:bg-white'
+            : 'bg-slate-900 rounded-2xl shadow-2xl max-w-5xl w-full max-h-[95vh] flex flex-col overflow-hidden border border-slate-700 print:max-w-none print:max-h-none print:shadow-none print:border-none print:rounded-none print:bg-white'
+        }
+      >
         {/* Top Control Bar (Hidden when printing) */}
-        <div className="px-6 py-3.5 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800 print:hidden">
+        <div className="px-5 py-3.5 bg-slate-950 text-white flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 print:hidden">
           <div className="flex items-center gap-2">
             <FileText className="w-5 h-5 text-blue-400" />
             <div>
@@ -112,33 +130,44 @@ export const ReportModal: React.FC<Props> = ({
 
           <div className="flex items-center gap-2">
             <button
+              type="button"
               onClick={handlePrint}
-              className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700 flex items-center gap-1.5 transition"
+              className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700 flex items-center gap-1.5 transition cursor-pointer"
             >
               <Printer className="w-3.5 h-3.5 text-cyan-400" />
               <span>{isFa ? 'چاپ / Print' : 'Print'}</span>
             </button>
 
             <button
+              type="button"
               disabled={isExporting}
               onClick={handleDownloadPdf}
-              className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-xs font-bold text-white flex items-center gap-1.5 shadow-sm transition disabled:opacity-50"
+              className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-xs font-bold text-white flex items-center gap-1.5 shadow-sm transition disabled:opacity-50 cursor-pointer"
             >
               <Download className="w-4 h-4" />
               <span>{isExporting ? (isFa ? 'در حال تولید PDF...' : 'Generating PDF...') : (isFa ? 'دانلود PDF' : 'Download PDF')}</span>
             </button>
 
-            <button
-              onClick={onClose}
-              className="text-slate-400 hover:text-white text-2xl font-bold ml-2 transition"
-            >
-              &times;
-            </button>
+            {!inline && onClose && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="text-slate-400 hover:text-white text-2xl font-bold ml-2 transition cursor-pointer"
+              >
+                &times;
+              </button>
+            )}
           </div>
         </div>
 
         {/* Printable Report Body */}
-        <div className="p-4 sm:p-8 overflow-y-auto flex-1 bg-slate-100 print:p-0 print:bg-white print:overflow-visible">
+        <div
+          className={
+            inline
+              ? 'p-4 sm:p-8 bg-slate-950/60 print:p-0 print:bg-white'
+              : 'p-4 sm:p-8 overflow-y-auto flex-1 bg-slate-950/90 print:p-0 print:bg-white print:overflow-visible'
+          }
+        >
           <div
             ref={reportRef}
             dir={isFa ? 'rtl' : 'ltr'}
@@ -240,14 +269,14 @@ export const ReportModal: React.FC<Props> = ({
                 {/* 3. Borehole & Grouting */}
                 <div className="bg-white border border-slate-200 rounded-lg p-3 space-y-1 shadow-2xs print:border-slate-400">
                   <div className="text-[11px] font-bold text-indigo-900 border-b border-slate-100 pb-1 flex items-center justify-between">
-                    <span>{isFa ? '۳. گمانه حفاری و دوغاب' : '3. Borehole & Grout'}</span>
+                    <span>{isFa ? '۳. گمانه حفاری، طول و شیب' : '3. Borehole, Length & Angle'}</span>
                     <span className="font-mono text-indigo-600 font-black" dir="ltr">DD = {state.pullout.drillholeDiameter} mm</span>
                   </div>
                   <div className="text-[11px] space-y-0.5 text-slate-700 pt-1">
-                    <div><strong>{isFa ? 'قطر چال حفاری:' : 'Drillhole Bore Dia:'}</strong> <span className="font-mono" dir="ltr">{state.pullout.drillholeDiameter} mm</span></div>
-                    <div><strong>{isFa ? 'طول پیوستگی مؤثر (Lp):' : 'Effective Bond Len:'}</strong> <span className="font-mono" dir="ltr">{state.pullout.effectiveBondLength} m</span></div>
-                    <div><strong>{isFa ? 'مقاومت پیوستگی خاک-دوغاب:' : 'Bond Strength (qu):'}</strong> <span className="font-mono" dir="ltr">{state.pullout.bondStrength} kPa</span></div>
-                    <div><strong>{isFa ? 'زاویه نصب گمانه:' : 'Nail Drill Angle:'}</strong> <span className="font-mono" dir="ltr">15° {isFa ? 'با افق' : 'from horiz.'}</span></div>
+                    <div><strong>{isFa ? 'ارتفاع ترانشه / طول کل:' : 'Wall H / Nail L:'}</strong> <span className="font-mono" dir="ltr">H={sys.wallHeight} m | L={sys.nailLength} m</span></div>
+                    <div><strong>{isFa ? 'قطر چال / طول پیوستگی (Lp):' : 'Drillhole / Bond Lp:'}</strong> <span className="font-mono" dir="ltr">{state.pullout.drillholeDiameter} mm | Lp={state.pullout.effectiveBondLength} m</span></div>
+                    <div><strong>{isFa ? 'مقاومت پیوستگی (qu):' : 'Bond Strength (qu):'}</strong> <span className="font-mono" dir="ltr">{state.pullout.bondStrength} kPa</span></div>
+                    <div><strong>{isFa ? 'زاویه نصب نیل:' : 'Nail Inclination:'}</strong> <span className="font-mono" dir="ltr">{sys.nailInclinationDeg}° {isFa ? 'با افق' : 'from horiz.'}</span></div>
                   </div>
                 </div>
 
@@ -272,15 +301,25 @@ export const ReportModal: React.FC<Props> = ({
                 <div className="bg-white border border-slate-200 rounded-lg p-3 space-y-1 shadow-2xs print:border-slate-400">
                   <div className="text-[11px] font-bold text-indigo-900 border-b border-slate-100 pb-1 flex items-center justify-between">
                     <span>{isFa ? '۵. پوشش نهایی (بتن درجا دائم)' : '5. Permanent Final Facing'}</span>
-                    <span className="font-mono text-indigo-600 font-black" dir="ltr">h = {state.facing.permThickness} mm</span>
+                    <span className={`font-mono font-black ${results.corrosion.isExemptTemporary ? 'text-amber-700' : 'text-indigo-600'}`} dir="ltr">
+                      {results.corrosion.isExemptTemporary ? (isFa ? 'غیرالزامی' : 'Omitted') : `h = ${state.facing.permThickness} mm`}
+                    </span>
                   </div>
-                  <div className="text-[11px] space-y-0.5 text-slate-700 pt-1">
-                    <div><strong>{isFa ? 'ضخامت بتن دائم:' : 'Thickness:'}</strong> <span className="font-mono" dir="ltr">{state.facing.permThickness} mm ({state.facing.permThickness / 10} cm)</span></div>
-                    <div><strong>{isFa ? 'مقاومت فشاری بتن (f\'c):' : 'f\'c Concrete:'}</strong> <span className="font-mono" dir="ltr">{state.facing.permFc} MPa</span></div>
-                    <div><strong>{isFa ? 'آرماتوربندی دیواره دائم:' : 'Permanent Rebar:'}</strong> <span className="font-mono text-indigo-800 font-bold" dir="ltr">{state.facing.permMesh.meshDiameter ? `φ${state.facing.permMesh.meshDiameter}@${state.facing.permMesh.meshSpacing}mm` : `${state.facing.permMesh.avn} mm²/m`}</span></div>
-                    <div><strong>{isFa ? 'سطح مقطع فولاد:' : 'Steel Area:'}</strong> <span className="font-mono" dir="ltr">avn={state.facing.permMesh.avn} / ahn={state.facing.permMesh.ahn} mm²/m</span></div>
-                    <div><strong>{isFa ? 'گل‌میخ‌های سر نیل:' : 'Headed Studs:'}</strong> <span className="font-mono text-indigo-800 font-semibold" dir="ltr">{state.facing.headedStudsCount}×φ{state.facing.headedStudDiameter} mm ({state.facing.headedStudType})</span></div>
-                  </div>
+                  {results.corrosion.isExemptTemporary ? (
+                    <div className="text-[11px] text-amber-800 pt-1 leading-relaxed">
+                      {isFa
+                        ? 'غیرالزامی (سیستم نیلینگ موقت — بدون اجرای پوشش بتن نهایی و گل‌میخ).'
+                        : 'Not Required (Temporary Nailing System — shotcrete facing only).'}
+                    </div>
+                  ) : (
+                    <div className="text-[11px] space-y-0.5 text-slate-700 pt-1">
+                      <div><strong>{isFa ? 'ضخامت بتن دائم:' : 'Thickness:'}</strong> <span className="font-mono" dir="ltr">{state.facing.permThickness} mm ({state.facing.permThickness / 10} cm)</span></div>
+                      <div><strong>{isFa ? 'مقاومت فشاری بتن (f\'c):' : 'f\'c Concrete:'}</strong> <span className="font-mono" dir="ltr">{state.facing.permFc} MPa</span></div>
+                      <div><strong>{isFa ? 'آرماتوربندی دیواره دائم:' : 'Permanent Rebar:'}</strong> <span className="font-mono text-indigo-800 font-bold" dir="ltr">{state.facing.permMesh.meshDiameter ? `φ${state.facing.permMesh.meshDiameter}@${state.facing.permMesh.meshSpacing}mm` : `${state.facing.permMesh.avn} mm²/m`}</span></div>
+                      <div><strong>{isFa ? 'سطح مقطع فولاد:' : 'Steel Area:'}</strong> <span className="font-mono" dir="ltr">avn={state.facing.permMesh.avn} / ahn={state.facing.permMesh.ahn} mm²/m</span></div>
+                      <div><strong>{isFa ? 'گل‌میخ‌های سر نیل:' : 'Headed Studs:'}</strong> <span className="font-mono text-indigo-800 font-semibold" dir="ltr">{state.facing.headedStudsCount}×φ{state.facing.headedStudDiameter} mm ({state.facing.headedStudType})</span></div>
+                    </div>
+                  )}
                 </div>
 
                 {/* 6. Bearing Plate & Nut */}
@@ -498,26 +537,46 @@ export const ReportModal: React.FC<Props> = ({
                       <td className="p-2 text-center font-mono font-bold text-slate-500 border border-slate-200">6</td>
                       <td className={`p-2 font-bold text-slate-900 border border-slate-200 ${isFa ? 'text-right' : 'text-left'}`}>
                         <div>{isFa ? 'مقاومت خمشی پوشش نهایی (بتن درجا دائم)' : 'Permanent CIP Facing Flexure'}</div>
-                        <div className="text-[10px] text-slate-500 font-mono font-normal" dir="ltr">h={state.facing.permThickness}mm, f'c={state.facing.permFc}MPa</div>
+                        <div className="text-[10px] text-slate-500 font-mono font-normal" dir="ltr">
+                          {results.corrosion.isExemptTemporary
+                            ? 'Temporary System — Not Required'
+                            : `h=${state.facing.permThickness}mm, f'c=${state.facing.permFc}MPa`}
+                        </div>
                       </td>
                       <td className="p-2 text-center font-mono text-slate-600 border border-slate-200 text-[10.5px]">
                         <span dir="ltr">AASHTO 11.12.6.2.2</span>
                       </td>
                       <td className="p-2 text-center font-mono border border-slate-200">
-                        <span dir="ltr" className="inline-block px-2 py-0.5 rounded bg-slate-100 border border-slate-200 font-medium">{results.permFlexure.factoredLoad} kN</span>
-                      </td>
-                      <td className="p-2 text-center font-mono border border-slate-200">
-                        <span dir="ltr" className="inline-block px-2 py-0.5 rounded bg-slate-100 border border-slate-200 font-medium">{results.permFlexure.factoredResistance} kN</span>
-                      </td>
-                      <td className="p-2 text-center font-mono border border-slate-200">
-                        <span dir="ltr" className={`inline-block px-2 py-0.5 rounded font-black text-xs ${results.permFlexure.CDR >= 1 ? 'bg-emerald-50 text-emerald-800 border border-emerald-300' : 'bg-rose-50 text-rose-800 border border-rose-300'}`}>
-                          {results.permFlexure.CDR}
+                        <span dir="ltr" className="inline-block px-2 py-0.5 rounded bg-slate-100 border border-slate-200 font-medium">
+                          {results.corrosion.isExemptTemporary ? '—' : `${results.permFlexure.factoredLoad} kN`}
                         </span>
+                      </td>
+                      <td className="p-2 text-center font-mono border border-slate-200">
+                        <span dir="ltr" className="inline-block px-2 py-0.5 rounded bg-slate-100 border border-slate-200 font-medium">
+                          {results.corrosion.isExemptTemporary ? '—' : `${results.permFlexure.factoredResistance} kN`}
+                        </span>
+                      </td>
+                      <td className="p-2 text-center font-mono border border-slate-200">
+                        {results.corrosion.isExemptTemporary ? (
+                          <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-300">
+                            {isFa ? 'غیرالزامی' : 'N/A'}
+                          </span>
+                        ) : (
+                          <span dir="ltr" className={`inline-block px-2 py-0.5 rounded font-black text-xs ${results.permFlexure.CDR >= 1 ? 'bg-emerald-50 text-emerald-800 border border-emerald-300' : 'bg-rose-50 text-rose-800 border border-rose-300'}`}>
+                            {results.permFlexure.CDR}
+                          </span>
+                        )}
                       </td>
                       <td className="p-2 text-center border border-slate-200">
-                        <span className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-[10px] font-black ${results.permFlexure.isPassed ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'}`}>
-                          {results.permFlexure.isPassed ? (isFa ? 'تأیید ✓' : 'PASS ✓') : (isFa ? 'رد ✕' : 'FAIL ✕')}
-                        </span>
+                        {results.corrosion.isExemptTemporary ? (
+                          <span className="inline-flex items-center justify-center px-2 py-0.5 rounded text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-300">
+                            {isFa ? 'معاف (موقت)' : 'N/A (Temp)'}
+                          </span>
+                        ) : (
+                          <span className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-[10px] font-black ${results.permFlexure.isPassed ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'}`}>
+                            {results.permFlexure.isPassed ? (isFa ? 'تأیید ✓' : 'PASS ✓') : (isFa ? 'رد ✕' : 'FAIL ✕')}
+                          </span>
+                        )}
                       </td>
                     </tr>
 
@@ -526,26 +585,46 @@ export const ReportModal: React.FC<Props> = ({
                       <td className="p-2 text-center font-mono font-bold text-slate-500 border border-slate-200">7</td>
                       <td className={`p-2 font-bold text-slate-900 border border-slate-200 ${isFa ? 'text-right' : 'text-left'}`}>
                         <div>{isFa ? 'برش پانچینگ بتن درجا نهایی' : 'Permanent Facing Punching Shear'}</div>
-                        <div className="text-[10px] text-slate-500 font-mono font-normal" dir="ltr">Dc'={(results.permPunching.DcPrime * 100).toFixed(1)}cm</div>
+                        <div className="text-[10px] text-slate-500 font-mono font-normal" dir="ltr">
+                          {results.corrosion.isExemptTemporary
+                            ? 'Temporary System — Not Required'
+                            : `Dc'=${(results.permPunching.DcPrime * 100).toFixed(1)}cm`}
+                        </div>
                       </td>
                       <td className="p-2 text-center font-mono text-slate-600 border border-slate-200 text-[10.5px]">
                         <span dir="ltr">AASHTO 11.12.6.2.2</span>
                       </td>
                       <td className="p-2 text-center font-mono border border-slate-200">
-                        <span dir="ltr" className="inline-block px-2 py-0.5 rounded bg-slate-100 border border-slate-200 font-medium">{results.permPunching.factoredLoad} kN</span>
-                      </td>
-                      <td className="p-2 text-center font-mono border border-slate-200">
-                        <span dir="ltr" className="inline-block px-2 py-0.5 rounded bg-slate-100 border border-slate-200 font-medium">{results.permPunching.factoredResistance} kN</span>
-                      </td>
-                      <td className="p-2 text-center font-mono border border-slate-200">
-                        <span dir="ltr" className={`inline-block px-2 py-0.5 rounded font-black text-xs ${results.permPunching.CDR >= 1 ? 'bg-emerald-50 text-emerald-800 border border-emerald-300' : 'bg-rose-50 text-rose-800 border border-rose-300'}`}>
-                          {results.permPunching.CDR}
+                        <span dir="ltr" className="inline-block px-2 py-0.5 rounded bg-slate-100 border border-slate-200 font-medium">
+                          {results.corrosion.isExemptTemporary ? '—' : `${results.permPunching.factoredLoad} kN`}
                         </span>
+                      </td>
+                      <td className="p-2 text-center font-mono border border-slate-200">
+                        <span dir="ltr" className="inline-block px-2 py-0.5 rounded bg-slate-100 border border-slate-200 font-medium">
+                          {results.corrosion.isExemptTemporary ? '—' : `${results.permPunching.factoredResistance} kN`}
+                        </span>
+                      </td>
+                      <td className="p-2 text-center font-mono border border-slate-200">
+                        {results.corrosion.isExemptTemporary ? (
+                          <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-300">
+                            {isFa ? 'غیرالزامی' : 'N/A'}
+                          </span>
+                        ) : (
+                          <span dir="ltr" className={`inline-block px-2 py-0.5 rounded font-black text-xs ${results.permPunching.CDR >= 1 ? 'bg-emerald-50 text-emerald-800 border border-emerald-300' : 'bg-rose-50 text-rose-800 border border-rose-300'}`}>
+                            {results.permPunching.CDR}
+                          </span>
+                        )}
                       </td>
                       <td className="p-2 text-center border border-slate-200">
-                        <span className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-[10px] font-black ${results.permPunching.isPassed ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'}`}>
-                          {results.permPunching.isPassed ? (isFa ? 'تأیید ✓' : 'PASS ✓') : (isFa ? 'رد ✕' : 'FAIL ✕')}
-                        </span>
+                        {results.corrosion.isExemptTemporary ? (
+                          <span className="inline-flex items-center justify-center px-2 py-0.5 rounded text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-300">
+                            {isFa ? 'معاف (موقت)' : 'N/A (Temp)'}
+                          </span>
+                        ) : (
+                          <span className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-[10px] font-black ${results.permPunching.isPassed ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'}`}>
+                            {results.permPunching.isPassed ? (isFa ? 'تأیید ✓' : 'PASS ✓') : (isFa ? 'رد ✕' : 'FAIL ✕')}
+                          </span>
+                        )}
                       </td>
                     </tr>
 
@@ -554,26 +633,46 @@ export const ReportModal: React.FC<Props> = ({
                       <td className="p-2 text-center font-mono font-bold text-slate-500 border border-slate-200">8</td>
                       <td className={`p-2 font-bold text-slate-900 border border-slate-200 ${isFa ? 'text-right' : 'text-left'}`}>
                         <div>{isFa ? 'کشش گل‌میخ‌های سر نیل (اتصال به مش دائم)' : 'Headed Studs Tensile Connection'}</div>
-                        <div className="text-[10px] text-slate-500 font-mono font-normal" dir="ltr">{state.facing.headedStudsCount}×φ{state.facing.headedStudDiameter} mm ({state.facing.headedStudType})</div>
+                        <div className="text-[10px] text-slate-500 font-mono font-normal" dir="ltr">
+                          {results.corrosion.isExemptTemporary
+                            ? 'Temporary System — Not Required'
+                            : `${state.facing.headedStudsCount}×φ${state.facing.headedStudDiameter} mm (${state.facing.headedStudType})`}
+                        </div>
                       </td>
                       <td className="p-2 text-center font-mono text-slate-600 border border-slate-200 text-[10.5px]">
                         <span dir="ltr">AASHTO 11.12.6.2.3</span>
                       </td>
                       <td className="p-2 text-center font-mono border border-slate-200">
-                        <span dir="ltr" className="inline-block px-2 py-0.5 rounded bg-slate-100 border border-slate-200 font-medium">{results.headedStuds.factoredLoad} kN</span>
-                      </td>
-                      <td className="p-2 text-center font-mono border border-slate-200">
-                        <span dir="ltr" className="inline-block px-2 py-0.5 rounded bg-slate-100 border border-slate-200 font-medium">{results.headedStuds.factoredResistance} kN</span>
-                      </td>
-                      <td className="p-2 text-center font-mono border border-slate-200">
-                        <span dir="ltr" className={`inline-block px-2 py-0.5 rounded font-black text-xs ${results.headedStuds.CDR >= 1 ? 'bg-emerald-50 text-emerald-800 border border-emerald-300' : 'bg-rose-50 text-rose-800 border border-rose-300'}`}>
-                          {results.headedStuds.CDR}
+                        <span dir="ltr" className="inline-block px-2 py-0.5 rounded bg-slate-100 border border-slate-200 font-medium">
+                          {results.corrosion.isExemptTemporary ? '—' : `${results.headedStuds.factoredLoad} kN`}
                         </span>
+                      </td>
+                      <td className="p-2 text-center font-mono border border-slate-200">
+                        <span dir="ltr" className="inline-block px-2 py-0.5 rounded bg-slate-100 border border-slate-200 font-medium">
+                          {results.corrosion.isExemptTemporary ? '—' : `${results.headedStuds.factoredResistance} kN`}
+                        </span>
+                      </td>
+                      <td className="p-2 text-center font-mono border border-slate-200">
+                        {results.corrosion.isExemptTemporary ? (
+                          <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-300">
+                            {isFa ? 'غیرالزامی' : 'N/A'}
+                          </span>
+                        ) : (
+                          <span dir="ltr" className={`inline-block px-2 py-0.5 rounded font-black text-xs ${results.headedStuds.CDR >= 1 ? 'bg-emerald-50 text-emerald-800 border border-emerald-300' : 'bg-rose-50 text-rose-800 border border-rose-300'}`}>
+                            {results.headedStuds.CDR}
+                          </span>
+                        )}
                       </td>
                       <td className="p-2 text-center border border-slate-200">
-                        <span className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-[10px] font-black ${results.headedStuds.isPassed ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'}`}>
-                          {results.headedStuds.isPassed ? (isFa ? 'تأیید ✓' : 'PASS ✓') : (isFa ? 'رد ✕' : 'FAIL ✕')}
-                        </span>
+                        {results.corrosion.isExemptTemporary ? (
+                          <span className="inline-flex items-center justify-center px-2 py-0.5 rounded text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-300">
+                            {isFa ? 'معاف (موقت)' : 'N/A (Temp)'}
+                          </span>
+                        ) : (
+                          <span className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-[10px] font-black ${results.headedStuds.isPassed ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'}`}>
+                            {results.headedStuds.isPassed ? (isFa ? 'تأیید ✓' : 'PASS ✓') : (isFa ? 'رد ✕' : 'FAIL ✕')}
+                          </span>
+                        )}
                       </td>
                     </tr>
 
@@ -583,28 +682,34 @@ export const ReportModal: React.FC<Props> = ({
                       <td className={`p-2 font-bold text-slate-900 border border-slate-200 ${isFa ? 'text-right' : 'text-left'}`}>
                         <div>{isFa ? 'سیستم حفاظت در برابر خوردگی و دوام' : 'Corrosion Protection System'}</div>
                         <div className="text-[10px] text-slate-500 font-mono font-normal">
-                          {state.corrosion.selectedClass === 'ClassA'
+                          {results.corrosion.isExemptTemporary
+                            ? (isFa ? 'نیل موقت (معاف از حفاظت - نصب بدون غلاف)' : 'Temporary Nail (Exempt - Bare in Grout)')
+                            : state.corrosion.selectedClass === 'ClassA'
                             ? (isFa ? 'غلاف دوجداره موج‌دار' : 'Double Encapsulation Duct')
-                            : state.corrosion.selectedClass === 'ClassB'
-                            ? (isFa ? 'پوشش اپوکسی/گالوانیزه' : 'Epoxy/Galvanized')
-                            : (isFa ? 'میلگرد ساده دوغاب‌ریزی شده' : 'Plain Bar in Grout')}
+                            : (isFa ? 'پوشش اپوکسی/گالوانیزه' : 'Epoxy/Galvanized')}
                         </div>
                       </td>
                       <td className="p-2 text-center font-mono text-slate-600 border border-slate-200 text-[10.5px]">
                         <span dir="ltr">AASHTO 11.12.8</span>
                       </td>
                       <td className="p-2 text-center border border-slate-200 text-[10px] font-medium text-slate-700">
-                        {results.corrosion.isAggressive ? (isFa ? 'خاک تهاجمی (خورنده)' : 'Aggressive Ground') : (isFa ? 'خاک غیرتهاجمی' : 'Non-Aggressive')}
+                        {results.corrosion.isExemptTemporary
+                          ? (isFa ? 'سازه موقت (< ۲ سال)' : 'Temp (< 2 yrs)')
+                          : results.corrosion.isAggressive
+                          ? (isFa ? 'خاک تهاجمی (خورنده)' : 'Aggressive Ground')
+                          : (isFa ? 'خاک غیرتهاجمی' : 'Non-Aggressive')}
                       </td>
                       <td className="p-2 text-center border border-slate-200 text-[10px] font-bold text-slate-800">
-                        {state.corrosion.selectedClass === 'ClassA'
+                        {results.corrosion.isExemptTemporary
+                          ? (isFa ? 'معاف — بدون حفاظت' : 'Exempt — None')
+                          : state.corrosion.selectedClass === 'ClassA'
                           ? (isFa ? 'کلاس A (الزام دوجداره)' : 'Class A (Double Duct)')
-                          : state.corrosion.selectedClass === 'ClassB'
-                          ? (isFa ? 'کلاس B (پوشش‌دار)' : 'Class B (Coated)')
-                          : (isFa ? 'بدون غلاف (نیل موقت)' : 'None (Temp Nail < 2 yrs)')}
+                          : (isFa ? 'کلاس B (پوشش‌دار)' : 'Class B (Coated)')}
                       </td>
                       <td className="p-2 text-center font-mono border border-slate-200 text-[10px] font-bold text-slate-700">
-                        {isFa ? 'مطابق آیین‌نامه' : 'Compliant'}
+                        {results.corrosion.isExemptTemporary
+                          ? (isFa ? 'معاف (Exempt)' : 'Exempt')
+                          : (isFa ? 'مطابق آیین‌نامه' : 'Compliant')}
                       </td>
                       <td className="p-2 text-center border border-slate-200">
                         <span className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-[10px] font-black ${results.corrosion.summaryStatus === 'Compliant' ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'}`}>
@@ -725,10 +830,31 @@ export const ReportModal: React.FC<Props> = ({
                     </tr>
                     <tr>
                       <td className="p-1.5 text-center font-mono text-slate-500 border border-slate-200">12</td>
-                      <td className="p-1.5 font-bold text-slate-900 border border-slate-200">{isFa ? 'آزمایش‌های شیمیایی خاک گمانه' : 'Geotech Chemical Lab Tests'}</td>
-                      <td className="p-1.5 text-center font-mono border border-slate-200"><span dir="ltr" className="inline-block px-1.5 py-0.5 rounded bg-slate-100 font-bold">pH={state.corrosion.soilTests.pH}, ρ={state.corrosion.soilTests.resistivity} Ω·cm</span></td>
+                      <td className="p-1.5 font-bold text-slate-900 border border-slate-200">{isFa ? 'هندسه گود و مشخصات ژئوتکنیکی خاک' : 'Wall Geometry & Soil Parameters'}</td>
+                      <td className="p-1.5 text-center font-mono border border-slate-200">
+                        <span dir="ltr" className="inline-block px-1.5 py-0.5 rounded bg-slate-100 font-bold">
+                          H={sys.wallHeight}m, L={sys.nailLength}m | γ={sys.soilUnitWeight}, c'={sys.soilCohesion}, φ'={sys.soilFrictionDeg}°
+                        </span>
+                      </td>
+                      <td className="p-1.5 text-center border border-slate-200">{isFa ? 'پارامترهای پایه پروژه' : 'Base Project Model'}</td>
+                      <td className="p-1.5 text-slate-600 border border-slate-200">{isFa ? 'مبنای تخمین اولیه رانش و طول نیل مطابق FHWA-NHI-14-007' : 'Initial trench geometry & soil shear parameters per FHWA-NHI-14-007'}</td>
+                    </tr>
+                    <tr>
+                      <td className="p-1.5 text-center font-mono text-slate-500 border border-slate-200">13</td>
+                      <td className="p-1.5 font-bold text-slate-900 border border-slate-200">{isFa ? 'شرایط حفاظت در برابر خوردگی' : 'Corrosion Protection Condition'}</td>
+                      <td className="p-1.5 text-center font-mono border border-slate-200">
+                        <span dir="ltr" className="inline-block px-1.5 py-0.5 rounded bg-slate-100 font-bold">
+                          {results.corrosion.isExemptTemporary
+                            ? (isFa ? 'Temp (< 2 yrs) — Exempt' : 'Temp (< 2 yrs) — Exempt')
+                            : `pH=${state.corrosion.soilTests.pH}, ρ=${state.corrosion.soilTests.resistivity} Ω·cm`}
+                        </span>
+                      </td>
                       <td className="p-1.5 text-center border border-slate-200">{isFa ? 'تب حفاظت خوردگی (Corrosion)' : 'Corrosion Tab'}</td>
-                      <td className="p-1.5 text-slate-600 border border-slate-200">{isFa ? 'گزارش مطالعات ژئوتکنیک خاک پروژه (گمانه‌های شناسایی BH)' : 'Site geotechnical investigation report (Borehole chemical lab tests)'}</td>
+                      <td className="p-1.5 text-slate-600 border border-slate-200">
+                        {results.corrosion.isExemptTemporary
+                          ? (isFa ? 'معاف از آزمایش خاک و غلاف محافظ طبق AASHTO 11.12.8 / FHWA GEC-7 §3.4' : 'Exempt from soil testing & encapsulation per AASHTO 11.12.8 / FHWA GEC-7 §3.4')
+                          : (isFa ? 'گزارش آزمایش‌های شیمیایی خاک پروژه (برای نیل‌های دائم)' : 'Project geotechnical chemical lab tests (permanent nails)')}
+                      </td>
                     </tr>
                   </tbody>
                 </table>
@@ -956,41 +1082,57 @@ export const ReportModal: React.FC<Props> = ({
                 <span className="w-2 h-2 rounded-full bg-blue-600"></span>
                 <span>{isFa ? '۵- کنترل خمش، برش پانچینگ بتن دائم و گل‌میخ‌ها (Permanent Facing)' : '5. Permanent Concrete Facing & Studs (AASHTO 11.12.6.2.2)'}</span>
               </h3>
-              <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 text-[11px] space-y-2 shadow-2xs">
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/60 pb-1.5">
-                  <span className="font-semibold text-slate-800">{isFa ? '• مشخصات بتن دائم و شبکه آرماتور:' : '• Permanent Concrete & Rebar Grid:'}</span>
-                  <div className="font-mono text-slate-900 flex items-center gap-2" dir="ltr">
-                    <span>h = {state.facing.permThickness} mm</span>
-                    <span>|</span>
-                    <span>f'c = {state.facing.permFc} MPa</span>
-                    <span>|</span>
-                    <span>Mesh = {state.facing.permMesh.avn} mm²/m</span>
+              {results.corrosion.isExemptTemporary ? (
+                <div className="bg-amber-50/70 p-3.5 rounded-lg border border-amber-300 text-[11px] space-y-1.5 shadow-2xs">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-200 pb-1.5">
+                    <span className="font-bold text-amber-950">{isFa ? '• وضعیت رویه پوشش نهایی (بتن درجا دائم):' : '• Permanent Facing Requirement:'}</span>
+                    <span className="px-2.5 py-0.5 rounded font-bold text-xs bg-amber-100 text-amber-900 border border-amber-300">
+                      {isFa ? 'غیرالزامی — سیستم نیلینگ موقت' : 'Not Required — Temporary System'}
+                    </span>
+                  </div>
+                  <p className="text-amber-950 leading-relaxed">
+                    {isFa
+                      ? 'بر اساس مشخصات سیستم میخ‌کوبی پروژه، این سازه به صورت پایدارسازی موقت (< ۲ سال) طراحی شده است؛ بنابراین نیازی به اجرای پوشش نهایی بتن درجا (CIP Permanent Facing) و گل‌میخ‌های اتصال سر نیل وجود نداشته و تنها شاتکریت اولیه کنترل گردیده است.'
+                      : 'Per project system specifications, this wall is designed for temporary support (< 2 years); permanent cast-in-place concrete facing and headed studs are not required.'}
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 text-[11px] space-y-2 shadow-2xs">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/60 pb-1.5">
+                    <span className="font-semibold text-slate-800">{isFa ? '• مشخصات بتن دائم و شبکه آرماتور:' : '• Permanent Concrete & Rebar Grid:'}</span>
+                    <div className="font-mono text-slate-900 flex items-center gap-2" dir="ltr">
+                      <span>h = {state.facing.permThickness} mm</span>
+                      <span>|</span>
+                      <span>f'c = {state.facing.permFc} MPa</span>
+                      <span>|</span>
+                      <span>Mesh = {state.facing.permMesh.avn} mm²/m</span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/60 pb-1.5">
+                    <span className="font-semibold text-slate-800">{isFa ? '• گل‌میخ‌های سر نیل (اتصال جوشی به پلیت و گیرداری با بتن دائم):' : '• Nail Head Studs Connection:'}</span>
+                    <span className="font-mono font-bold text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-200" dir="ltr">
+                      {state.facing.headedStudsCount}×φ{state.facing.headedStudDiameter} mm ({state.facing.headedStudType})
+                    </span>
+                  </div>
+
+                  <div className={`p-2.5 rounded-md border flex flex-wrap items-center justify-between gap-2 font-bold ${results.headedStuds.isPassed ? 'bg-emerald-50 border-emerald-300 text-emerald-950' : 'bg-rose-50 border-rose-300 text-rose-950'}`}>
+                    <span className="flex items-center gap-2">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-black ${results.headedStuds.isPassed ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'}`}>
+                        {results.headedStuds.isPassed ? (isFa ? 'کنترل ضابطه: تأیید' : 'CRITERIA SATISFIED') : (isFa ? 'کنترل ضابطه: نامطلوب' : 'CRITERIA FAILED')}
+                      </span>
+                      <span>{isFa ? 'ظرفیت کششی گل‌میخ‌ها (RFH):' : 'Studs Tensile Capacity:'}</span>
+                    </span>
+                    <div className="flex items-center gap-3 font-mono" dir="ltr">
+                      <span>RFH = {results.headedStuds.RFH} kN</span>
+                      <span className={`px-2 py-0.5 rounded font-black text-xs ${results.headedStuds.isPassed ? 'bg-emerald-100 text-emerald-900 border border-emerald-300' : 'bg-rose-100 text-rose-900 border border-rose-300'}`}>
+                        CDR = {results.headedStuds.CDR} ≥ 1.00
+                      </span>
+                      <span className="font-sans font-bold text-xs">{results.headedStuds.isPassed ? (isFa ? '✓ تأمین شد (OK)' : '✓ PASS (OK)') : (isFa ? '✕ ناکافی (NG)' : '✕ FAIL (NG)')}</span>
+                    </div>
                   </div>
                 </div>
-
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/60 pb-1.5">
-                  <span className="font-semibold text-slate-800">{isFa ? '• گل‌میخ‌های سر نیل (اتصال جوشی به پلیت و گیرداری با بتن دائم):' : '• Nail Head Studs Connection:'}</span>
-                  <span className="font-mono font-bold text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-200" dir="ltr">
-                    {state.facing.headedStudsCount}×φ{state.facing.headedStudDiameter} mm ({state.facing.headedStudType})
-                  </span>
-                </div>
-
-                <div className={`p-2.5 rounded-md border flex flex-wrap items-center justify-between gap-2 font-bold ${results.headedStuds.isPassed ? 'bg-emerald-50 border-emerald-300 text-emerald-950' : 'bg-rose-50 border-rose-300 text-rose-950'}`}>
-                  <span className="flex items-center gap-2">
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-black ${results.headedStuds.isPassed ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'}`}>
-                      {results.headedStuds.isPassed ? (isFa ? 'کنترل ضابطه: تأیید' : 'CRITERIA SATISFIED') : (isFa ? 'کنترل ضابطه: نامطلوب' : 'CRITERIA FAILED')}
-                    </span>
-                    <span>{isFa ? 'ظرفیت کششی گل‌میخ‌ها (RFH):' : 'Studs Tensile Capacity:'}</span>
-                  </span>
-                  <div className="flex items-center gap-3 font-mono" dir="ltr">
-                    <span>RFH = {results.headedStuds.RFH} kN</span>
-                    <span className={`px-2 py-0.5 rounded font-black text-xs ${results.headedStuds.isPassed ? 'bg-emerald-100 text-emerald-900 border border-emerald-300' : 'bg-rose-100 text-rose-900 border border-rose-300'}`}>
-                      CDR = {results.headedStuds.CDR} ≥ 1.00
-                    </span>
-                    <span className="font-sans font-bold text-xs">{results.headedStuds.isPassed ? (isFa ? '✓ تأمین شد (OK)' : '✓ PASS (OK)') : (isFa ? '✕ ناکافی (NG)' : '✕ FAIL (NG)')}</span>
-                  </div>
-                </div>
-              </div>
+              )}
             </div>
 
             {/* SECTION 6: CORROSION PROTECTION */}
@@ -999,53 +1141,59 @@ export const ReportModal: React.FC<Props> = ({
                 <span className="w-2 h-2 rounded-full bg-blue-600"></span>
                 <span>{isFa ? '۶- ارزیابی تهاجم خاک و مشخصات سیستم حفاظت خوردگی نیل‌ها' : '6. Soil Corrosiveness & Protection Assessment (AASHTO 11.12.8)'}</span>
               </h3>
-              <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 text-[11px] space-y-2 shadow-2xs">
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/60 pb-1.5">
-                  <span className="font-semibold text-slate-800">{isFa ? '• نتایج آزمایش‌های الکتروشیمیایی خاک گمانه:' : '• Soil Electrochemical Tests:'}</span>
-                  <div className="font-mono text-slate-900 flex items-center gap-2" dir="ltr">
-                    <span>pH = {state.corrosion.soilTests.pH}</span>
-                    <span>|</span>
-                    <span>ρ = {state.corrosion.soilTests.resistivity} Ω·cm</span>
-                    <span>|</span>
-                    <span>Cl = {state.corrosion.soilTests.chlorides} ppm</span>
-                    <span>|</span>
-                    <span>SO₄ = {state.corrosion.soilTests.sulfates} ppm</span>
+              {results.corrosion.isExemptTemporary ? (
+                <div className="bg-amber-50/70 p-3.5 rounded-lg border border-amber-300 text-[11px] space-y-2 shadow-2xs">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-200 pb-1.5">
+                    <span className="font-bold text-amber-950">{isFa ? '• دسته‌بندی سیستم (عمر بهره‌برداری):' : '• Design Service Life Class:'}</span>
+                    <span className="px-2.5 py-0.5 rounded font-bold text-xs bg-emerald-100 text-emerald-900 border border-emerald-300">
+                      {isFa ? 'نیل‌های موقت (< ۲ سال) — معاف از کنترل حفاظت خوردگی (OK)' : 'Temporary Nails (< 2 yrs) — Exempt from Corrosion Check (OK)'}
+                    </span>
                   </div>
-                </div>
-
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/60 pb-1.5">
-                  <span className="font-semibold text-slate-800">{isFa ? '• طبقه‌بندی محیط ژئوتکنیکی:' : '• Geotechnical Environment Classification:'}</span>
-                  <span className={`px-2.5 py-0.5 rounded font-bold text-xs ${results.corrosion.isAggressive ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-emerald-100 text-emerald-900 border border-emerald-300'}`}>
-                    {results.corrosion.isAggressive ? (isFa ? 'محیط تهاجمی و خورنده (Aggressive Ground)' : 'Aggressive Ground') : (isFa ? 'محیط غیرتهاجمی و نرمال (Non-Aggressive Ground)' : 'Non-Aggressive Ground')}
-                  </span>
-                </div>
-
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/60 pb-1.5">
-                  <span className="font-semibold text-slate-800">{isFa ? '• سیستم مصوب انتخابی:' : '• Approved Protection System:'}</span>
-                  <span className="font-bold text-indigo-900 bg-white px-2 py-0.5 rounded border border-slate-200">
-                    {state.corrosion.selectedClass === 'ClassA'
-                      ? (isFa ? 'کلاس A: محصورسازی کامل در غلاف موج‌دار دوجداره (Double Protection)' : 'Class A: Full Encapsulation in Corrugated Duct (Double Protection)')
-                      : state.corrosion.selectedClass === 'ClassB'
-                      ? (isFa ? 'کلاس B: میلگرد پوشش‌دار اپوکسی یا گالوانیزه' : 'Class B: Epoxy-Coated / Galvanized Bar')
-                      : (isFa ? 'بدون پوشش و بدون غلاف (صرفاً ویژه نیل‌های موقت با طول عمر کمتر از ۲ سال)' : 'Without Protection: Bare Bar in Grout (Temporary Nails < 2 yrs)')}
-                  </span>
-                </div>
-
-                {state.corrosion.selectedClass === 'ClassA' && (
-                  <div className="p-2 bg-indigo-50/70 rounded border border-indigo-200 space-y-1 text-[10.5px]">
-                    <div>• {isFa ? 'غلاف محافظ:' : 'Corrugated Duct:'} <span className="font-mono font-bold" dir="ltr">{state.corrosion.ductMaterial} (t = {state.corrosion.ductWallThickness} mm, ID = {state.corrosion.ductInsideDiameter} mm)</span> - OK</div>
-                    <div>• {isFa ? 'فواصل سنترالایزرها:' : 'Centralizers:'} <span className="font-mono font-bold" dir="ltr">{state.corrosion.internalCentralizerSpacing} m ≤ 3.0 m</span> - OK</div>
-                  </div>
-                )}
-
-                {state.corrosion.selectedClass === 'None' && (
-                  <div className="text-amber-900 font-sans p-2 bg-amber-50 rounded border border-amber-200 text-[10.5px]">
+                  <p className="text-amber-950 leading-relaxed">
                     {isFa
-                      ? 'توجه: این گزینه منحصراً برای پایدارسازی‌های موقت گودبرداری‌های شهری و ترانشه‌هایی با طول خدمت حداکثر ۱۸ الی ۲۴ ماه مجاز است. در این حالت میلگرد نیل بدون غلاف پلاستیکی مستقیماً درون دوغاب سیمانی قرار می‌گیرد.'
-                      : 'Note: Unprotected plain nails are allowed strictly for temporary excavations with service life < 2 years per FHWA NHI-14-007. Steel rebar is grouted without protective duct.'}
+                      ? 'بر اساس بند AASHTO 11.12.8 و بخش ۳.۴ نشریه FHWA-NHI-14-007، سازه‌های میخ‌کوبی موقت با عمر کمتر از ۱۸ تا ۲۴ ماه از آزمایش‌های شیمیایی خوردگی و اجرای غلاف/پوشش معاف بوده و میلگردها بدون حفاظت و مستقیماً درون دوغاب سیمانی گمانه نصب می‌گردند.'
+                      : 'Per AASHTO 11.12.8 and FHWA-NHI-14-007 §3.4, temporary soil nails (< 2 years service life) are exempt from corrosion protection detailing and are installed bare directly inside cement grout.'}
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 text-[11px] space-y-2 shadow-2xs">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/60 pb-1.5">
+                    <span className="font-semibold text-slate-800">{isFa ? '• نتایج آزمایش‌های الکتروشیمیایی خاک گمانه:' : '• Soil Electrochemical Tests:'}</span>
+                    <div className="font-mono text-slate-900 flex items-center gap-2" dir="ltr">
+                      <span>pH = {state.corrosion.soilTests.pH}</span>
+                      <span>|</span>
+                      <span>ρ = {state.corrosion.soilTests.resistivity} Ω·cm</span>
+                      <span>|</span>
+                      <span>Cl = {state.corrosion.soilTests.chlorides} ppm</span>
+                      <span>|</span>
+                      <span>SO₄ = {state.corrosion.soilTests.sulfates} ppm</span>
+                    </div>
                   </div>
-                )}
-              </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/60 pb-1.5">
+                    <span className="font-semibold text-slate-800">{isFa ? '• طبقه‌بندی محیط ژئوتکنیکی:' : '• Geotechnical Environment Classification:'}</span>
+                    <span className={`px-2.5 py-0.5 rounded font-bold text-xs ${results.corrosion.isAggressive ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-emerald-100 text-emerald-900 border border-emerald-300'}`}>
+                      {results.corrosion.isAggressive ? (isFa ? 'محیط تهاجمی و خورنده (Aggressive Ground)' : 'Aggressive Ground') : (isFa ? 'محیط غیرتهاجمی و نرمال (Non-Aggressive Ground)' : 'Non-Aggressive Ground')}
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/60 pb-1.5">
+                    <span className="font-semibold text-slate-800">{isFa ? '• سیستم مصوب انتخابی:' : '• Approved Protection System:'}</span>
+                    <span className="font-bold text-indigo-900 bg-white px-2 py-0.5 rounded border border-slate-200">
+                      {state.corrosion.selectedClass === 'ClassA'
+                        ? (isFa ? 'کلاس A: محصورسازی کامل در غلاف موج‌دار دوجداره (Double Protection)' : 'Class A: Full Encapsulation in Corrugated Duct (Double Protection)')
+                        : (isFa ? 'کلاس B: میلگرد پوشش‌دار اپوکسی یا گالوانیزه' : 'Class B: Epoxy-Coated / Galvanized Bar')}
+                    </span>
+                  </div>
+
+                  {state.corrosion.selectedClass === 'ClassA' && (
+                    <div className="p-2 bg-indigo-50/70 rounded border border-indigo-200 space-y-1 text-[10.5px]">
+                      <div>• {isFa ? 'غلاف محافظ:' : 'Corrugated Duct:'} <span className="font-mono font-bold" dir="ltr">{state.corrosion.ductMaterial} (t = {state.corrosion.ductWallThickness} mm, ID = {state.corrosion.ductInsideDiameter} mm)</span> - OK</div>
+                      <div>• {isFa ? 'فواصل سنترالایزرها:' : 'Centralizers:'} <span className="font-mono font-bold" dir="ltr">{state.corrosion.internalCentralizerSpacing} m ≤ 3.0 m</span> - OK</div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* SIGNATURE & APPROVAL BLOCK */}
@@ -1069,6 +1217,110 @@ export const ReportModal: React.FC<Props> = ({
                 <div className="font-bold text-slate-900">{isFa ? 'مدیر پروژه و مهندسین مشاور' : 'Project Director'}</div>
                 <div className="h-10"></div>
                 <div className="border-t border-slate-400 w-36 mx-auto pt-1 text-[10px] text-slate-400">{isFa ? 'امضا و مهر مشاور' : 'Seal & Approval'}</div>
+              </div>
+            </div>
+
+            {/* SOFTWARE SPECIFICATIONS & REPORT COLOPHON (عطف گزارش) */}
+            <div className="mt-7 pt-4 border-t border-dashed border-slate-400 break-inside-avoid">
+              <div className="bg-slate-50 border border-slate-300 rounded-lg p-3.5 text-[10.5px] text-slate-700 print:bg-white print:border-slate-500">
+                <div className="flex flex-wrap items-center justify-between gap-2 pb-2 mb-2.5 border-b border-slate-300">
+                  <div className="flex items-center gap-1.5 font-extrabold text-slate-900 text-[11px]">
+                    <Cpu className="w-3.5 h-3.5 text-blue-700 shrink-0" />
+                    <span>
+                      {isFa ? 'مشخصات نرم‌افزار' : 'Software Specifications'}
+                    </span>
+                  </div>
+                  <span
+                    className="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-slate-200/80 text-slate-800 border border-slate-300"
+                    dir="ltr"
+                  >
+                    Soil Nail Design Suite • v1.0 (LRFD)
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-2 leading-relaxed">
+                  <div className="space-y-1">
+                    <div>
+                      <span className="font-bold text-slate-900">
+                        {isFa ? 'نام سامانه: ' : 'Software Title: '}
+                      </span>
+                      <span>
+                        {isFa
+                          ? 'سامانه جامع محاسبات و طراحی دیوارهای میخ‌کوبی‌شده (نیلینگ)'
+                          : 'Soil Nail Wall Design Suite (LRFD Engineering Platform)'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-bold text-slate-900">
+                        {isFa ? 'مبنای آیین‌نامه‌ای: ' : 'Design Standards: '}
+                      </span>
+                      <span className="font-mono text-slate-800" dir="ltr">
+                        AASHTO LRFD (9th Ed., 2020) &amp; FHWA-NHI-14-007 (GEC-7)
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-bold text-slate-900">
+                        {isFa ? 'ماژول‌ها و خروجی: ' : 'Modules & Output: '}
+                      </span>
+                      <span>
+                        {isFa
+                          ? 'پایداری داخلی، رویه پوشش، حفاظت خوردگی، مقاطع CAD و پرونده *.SNDA'
+                          : 'Internal Stability, Facings, Corrosion Protection, CAD & *.SNDA Format'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-bold text-slate-900">
+                        {isFa ? 'شناسه عطف مدرک: ' : 'Document Ref.: '}
+                      </span>
+                      <span className="font-mono text-slate-800" dir="ltr">
+                        {metadata.projectNumber || 'SN-LRFD'} | {metadata.date}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <div>
+                      <span className="font-bold text-slate-900">
+                        {isFa ? 'سرپرست علمی و توسعه‌دهنده: ' : 'Scientific Lead & Developer: '}
+                      </span>
+                      <span>
+                        {DEFAULT_DEVELOPER_PROFILE.name[lang]} (
+                        {DEFAULT_DEVELOPER_PROFILE.degree?.[lang]}) —{' '}
+                        {DEFAULT_DEVELOPER_PROFILE.affiliation?.[lang]}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-bold text-slate-900">
+                        {isFa ? 'پست الکترونیک: ' : 'Official Emails: '}
+                      </span>
+                      <span className="font-mono text-slate-800" dir="ltr">
+                        {DEFAULT_DEVELOPER_PROFILE.academicEmail} | {DEFAULT_DEVELOPER_PROFILE.personalEmail}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-bold text-slate-900">
+                        {isFa ? 'تلفن تماس: ' : 'Direct Contact: '}
+                      </span>
+                      <span className="font-mono text-slate-800" dir="ltr">
+                        {DEFAULT_DEVELOPER_PROFILE.phone}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-bold text-slate-900">
+                        {isFa ? 'مخزن رسمی و دریافت نسخه جدید: ' : 'Official Repository & Releases: '}
+                      </span>
+                      <a
+                        href={DEFAULT_DEVELOPER_GITHUB.repoUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-mono text-blue-700 hover:underline break-all"
+                        dir="ltr"
+                      >
+                        {DEFAULT_DEVELOPER_GITHUB.repoUrl}
+                      </a>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

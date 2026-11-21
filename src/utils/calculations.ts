@@ -11,7 +11,79 @@ import {
   FacingPunchingResults,
   HeadedStudsResults,
   CorrosionAssessmentResults,
+  SystemSpecsInputs,
+  PreliminaryEstimateResults,
 } from '../types/nailing';
+
+/**
+ * 0. Preliminary Soil Nail System Sizing & FHWA-NHI-14-007 Estimation
+ * Estimates active earth pressure coefficient Ka, preliminary Tmax, recommended length L,
+ * and effective bond length Lp behind active wedge.
+ */
+export function calculatePreliminaryNailingEstimate(
+  system: SystemSpecsInputs,
+  Sh: number,
+  Sv: number
+): PreliminaryEstimateResults {
+  const H = Math.max(1, system.wallHeight);
+  const phiDeg = Math.min(55, Math.max(10, system.soilFrictionDeg));
+  const batterDeg = Math.min(30, Math.max(0, system.wallBatterDeg));
+  const rawBeta = Math.max(0, system.backslopeDeg);
+  const betaDeg = Math.min(rawBeta, phiDeg - 1);
+
+  const deg2rad = Math.PI / 180;
+  const phi = phiDeg * deg2rad;
+  const alpha = batterDeg * deg2rad; // face batter from vertical
+  const beta = betaDeg * deg2rad; // backslope angle
+
+  // Coulomb active earth pressure coefficient (wall interface delta = 0 conservative for prelim sizing)
+  let Ka: number;
+  if (batterDeg === 0 && betaDeg === 0) {
+    Ka = Math.pow(Math.tan((45 - phiDeg / 2) * deg2rad), 2);
+  } else {
+    const num = Math.pow(Math.cos(phi - alpha), 2);
+    const radicand = Math.max(0, (Math.sin(phi) * Math.sin(phi - beta)) / (Math.cos(alpha) * Math.cos(beta + alpha)));
+    const denom = Math.pow(Math.cos(alpha), 2) * Math.pow(1 + Math.sqrt(radicand), 2);
+    Ka = Math.max(0.1, num / Math.max(0.05, denom));
+  }
+
+  const overburdenStressKpa = system.soilUnitWeight * H + system.surchargeKpa;
+  const activePressureKpa = Ka * overburdenStressKpa;
+
+  // Cohesion-adjusted active pressure with minimum Rankine lower floor (0.2 * gamma * H * Ka)
+  const rawCohesionReduced = activePressureKpa - 2 * system.soilCohesion * Math.sqrt(Ka);
+  const minFloorPressure = 0.2 * Ka * system.soilUnitWeight * H;
+  const cohesionAdjustedPressureKpa = Math.max(minFloorPressure, rawCohesionReduced);
+
+  const tributaryArea = Math.max(0.25, Sh * Sv);
+
+  // FHWA-NHI-14-007 Section 5.2 preliminary service nail tension:
+  // Upper bound granular rule: Tmax ~ 0.75 * Ka * (gamma * H + q) * Sh * Sv
+  // Cohesion-adjusted rule: Tmax ~ 0.70 * sigma_a_adj * Sh * Sv
+  const estimatedTmaxUpper = 0.75 * activePressureKpa * tributaryArea;
+  const estimatedTmaxAdjusted = 0.70 * cohesionAdjustedPressureKpa * tributaryArea;
+
+  const recommendedLengthMin = Number((0.7 * H).toFixed(1));
+  const recommendedLengthMax = Number((1.0 * H).toFixed(1));
+  const estimatedUnbondedLength = Number((0.35 * H).toFixed(1));
+  const estimatedBondLength = Number(Math.max(1.5, system.nailLength - 0.35 * H).toFixed(1));
+
+  return {
+    Ka: Number(Ka.toFixed(3)),
+    overburdenStressKpa: Number(overburdenStressKpa.toFixed(1)),
+    activePressureKpa: Number(activePressureKpa.toFixed(1)),
+    cohesionAdjustedPressureKpa: Number(cohesionAdjustedPressureKpa.toFixed(1)),
+    recommendedLengthMin,
+    recommendedLengthMax,
+    estimatedUnbondedLength,
+    estimatedBondLength,
+    tributaryArea: Number(tributaryArea.toFixed(2)),
+    estimatedTmaxUpper: Number(estimatedTmaxUpper.toFixed(1)),
+    estimatedTmaxAdjusted: Number(estimatedTmaxAdjusted.toFixed(1)),
+    isLengthCompliant: system.nailLength >= recommendedLengthMin,
+    isSpacingCompliant: tributaryArea <= 4.0 && Sh <= 2.2 && Sv <= 2.2,
+  };
+}
 
 /**
  * Calculate nail head tension T0 from maximum nail load Tmax using Clouterre formula
@@ -292,7 +364,7 @@ export function calculateHeadedStuds(
 export function evaluateCorrosionProtection(
   state: DesignState
 ): CorrosionAssessmentResults {
-  const { soilTests, selectedClass, ductMaterial, ductWallThickness, ductInsideDiameter } = state.corrosion;
+  const { soilTests, designLife, selectedClass, ductMaterial, ductWallThickness, ductInsideDiameter } = state.corrosion;
   const barDiameter = state.tendon.barDiameter;
 
   // Criteria for Non-aggressive soil:
@@ -303,7 +375,7 @@ export function evaluateCorrosionProtection(
   // Organics <= 1.0 %
   const isPHSafe = soilTests.pH >= 5.0 && soilTests.pH <= 10.0;
   const isResistivitySafe = soilTests.resistivity >= 3000;
-  
+
   // If resistivity >= 5000 ohm-cm, chloride and sulfate requirements may be waived
   const waiverActive = soilTests.resistivity >= 5000;
   const isChloridesSafe = waiverActive || soilTests.chlorides <= 100;
@@ -313,7 +385,26 @@ export function evaluateCorrosionProtection(
   const isNonAggressive = isPHSafe && isResistivitySafe && isChloridesSafe && isSulfatesSafe && isOrganicsSafe;
   const isAggressive = !isNonAggressive;
 
-  // AASHTO: For aggressive soils or unknown conditions, Class A encapsulation is mandatory
+  // Temporary nails (< 2 years): Exempt from corrosion protection checks & installed bare in cement grout
+  if (designLife === 'temporary') {
+    return {
+      isExemptTemporary: true,
+      isPHSafe,
+      isResistivitySafe,
+      isChloridesSafe,
+      isSulfatesSafe,
+      isOrganicsSafe,
+      isAggressive,
+      recommendedClass: 'None',
+      isDuctThicknessAdequate: true,
+      isDuctDiameterAdequate: true,
+      isInternalClearanceAdequate: true,
+      isClassAdequate: true,
+      summaryStatus: 'Compliant',
+    };
+  }
+
+  // Permanent nails (> 75 years): Full AASHTO 11.12.8 corrosion protection required
   const recommendedClass = isAggressive ? 'ClassA' : 'ClassB';
 
   // Duct thickness check (PVC min 1.0mm, HDPE min 1.5mm)
@@ -328,14 +419,14 @@ export function evaluateCorrosionProtection(
   const internalClearance = (ductInsideDiameter - barDiameter) / 2;
   const isInternalClearanceAdequate = internalClearance >= 5.0;
 
-  // Class adequacy
+  // Class adequacy for permanent walls
   let isClassAdequate = false;
   let summaryStatus: 'Compliant' | 'Non-Compliant' = 'Non-Compliant';
 
   if (selectedClass === 'None') {
-    // Permitted only for temporary walls (life < 2 years) per FHWA & AASHTO
-    isClassAdequate = true;
-    summaryStatus = state.corrosion.designLife === 'temporary' ? 'Compliant' : 'Non-Compliant';
+    // Bare unprotected tendon is strictly prohibited for permanent nails (> 2 years)
+    isClassAdequate = false;
+    summaryStatus = 'Non-Compliant';
   } else if (selectedClass === 'ClassA') {
     isClassAdequate = true;
     summaryStatus = (isDuctThicknessAdequate && isDuctDiameterAdequate && isInternalClearanceAdequate)
@@ -347,6 +438,7 @@ export function evaluateCorrosionProtection(
   }
 
   return {
+    isExemptTemporary: false,
     isPHSafe,
     isResistivitySafe,
     isChloridesSafe,
@@ -354,9 +446,9 @@ export function evaluateCorrosionProtection(
     isOrganicsSafe,
     isAggressive,
     recommendedClass,
-    isDuctThicknessAdequate: selectedClass === 'None' ? true : isDuctThicknessAdequate,
-    isDuctDiameterAdequate: selectedClass === 'None' ? true : isDuctDiameterAdequate,
-    isInternalClearanceAdequate: selectedClass === 'None' ? true : isInternalClearanceAdequate,
+    isDuctThicknessAdequate: selectedClass !== 'ClassA' ? true : isDuctThicknessAdequate,
+    isDuctDiameterAdequate: selectedClass !== 'ClassA' ? true : isDuctDiameterAdequate,
+    isInternalClearanceAdequate: selectedClass !== 'ClassA' ? true : isInternalClearanceAdequate,
     isClassAdequate,
     summaryStatus,
   };
@@ -464,6 +556,7 @@ export function calculateAll(state: DesignState): FullCalculationResults {
 
   // 8. Corrosion check
   const corrosion = evaluateCorrosionProtection(state);
+  const isTemporarySystem = state.corrosion.designLife === 'temporary';
 
   const isOverallPassed =
     tendonRes.isPassed &&
@@ -471,9 +564,7 @@ export function calculateAll(state: DesignState): FullCalculationResults {
     plateRes.isPassed &&
     tempFlexure.isPassed &&
     tempPunching.isPassed &&
-    permFlexure.isPassed &&
-    permPunching.isPassed &&
-    headedStuds.isPassed &&
+    (isTemporarySystem || (permFlexure.isPassed && permPunching.isPassed && headedStuds.isPassed)) &&
     corrosion.summaryStatus === 'Compliant';
 
   return {

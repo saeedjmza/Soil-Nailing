@@ -3,17 +3,37 @@
 @layer base {
   body {
     font-family: 'Vazirmatn', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background-color: #020617;
+    color: #f1f5f9;
   }
 
   code, pre, .font-mono {
     font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     direction: ltr;
     unicode-bidi: isolate;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Custom engineering dark scrollbars */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #090d16;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #475569;
   }
 
   /* Prevent number input arrows from overlapping text or unit badges in RTL/LTR */
   input[type="number"] {
     -moz-appearance: textfield;
+    font-variant-numeric: tabular-nums;
   }
   input[type="number"]::-webkit-inner-spin-button,
   input[type="number"]::-webkit-outer-spin-button {
@@ -22,7 +42,12 @@
   }
 }
 
-/* Print optimizations for calculation booklet */
+/* Safe padding for mobile bottom navigation + notch */
+.pb-safe {
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+}
+
+/* Print optimizations for formal white engineering calculation booklet */
 @media print {
   @page {
     size: A4 portrait;

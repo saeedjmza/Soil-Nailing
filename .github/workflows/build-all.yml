@@ -1,0 +1,102 @@
+name: Build Windows EXE and Android APK
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    name: Build Windows Standalone EXE
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Build Web Application
+        run: npm run build
+
+      - name: Pack Embedded Asset Bundle
+        run: node scripts/pack-assets.cjs
+
+      - name: Compile Native Standalone EXE
+        run: |
+          mkdir build -ErrorAction SilentlyContinue
+          mkdir release -ErrorAction SilentlyContinue
+          if (-not (Test-Path "build\icon.ico") -and (Test-Path "public\favicon.ico")) {
+            Copy-Item "public\favicon.ico" "build\icon.ico" -Force
+          }
+          $csc = "${env:SystemRoot}\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+          if (-not (Test-Path $csc)) {
+            $csc = "${env:SystemRoot}\Microsoft.NET\Framework\v4.0.30319\csc.exe"
+          }
+          & $csc /nologo /optimize+ /target:winexe /win32icon:build\icon.ico /resource:build\app_assets.bundle,SoilNailAssets /out:release\SoilNailDesignSuite1.0.exe /r:System.dll scripts\SoilNailLauncher.cs
+
+      - name: Upload Windows Standalone Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SoilNailDesignSuite1.0-Windows-EXE
+          path: |
+            release/SoilNailDesignSuite1.0.exe
+
+  build-android-apk:
+    name: Build Offline Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install and Build Web Distribution
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
+
+      - name: Build Offline Capacitor Android APK
+        run: |
+          cat << 'EOF' > capacitor.config.json
+          {
+            "appId": "com.geomechanics.soilnail",
+            "appName": "Soil Nail Design Suite",
+            "webDir": "dist",
+            "bundledWebRuntime": false
+          }
+          EOF
+          npm install --no-save @capacitor/core @capacitor/cli @capacitor/android
+          npx cap add android
+          mkdir -p android/app/src/main/res/mipmap-xxxhdpi
+          cp -f public/app-icon.png android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png || true
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+          cd ..
+          mkdir -p release
+          cp android/app/build/outputs/apk/debug/app-debug.apk release/SoilNailDesignSuite1.0.apk
+
+      - name: Upload Android APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SoilNailDesignSuite1.0-Android-APK
+          path: release/SoilNailDesignSuite1.0.apk

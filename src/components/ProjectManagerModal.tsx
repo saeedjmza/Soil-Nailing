@@ -1,9 +1,11 @@
 /**
- * Project Management Modal: Save/Load projects with custom names, export/import JSON,
+ * Project Management Modal: Save/Load projects with custom names, export/import *.SNDA,
  * and persistent LocalStorage history keeping both inputs and calculation results.
  */
 import React, { useState, useEffect } from 'react';
 import { DesignState, FullCalculationResults, Language } from '../types/nailing';
+import { DEFAULT_SYSTEM_SPECS, normalizeDesignState } from '../constants/standardsData';
+import { downloadSndaFile, parseSndaFile } from '../utils/sndaFile';
 import { TRANSLATIONS } from '../utils/translations';
 import {
   FolderOpen,
@@ -11,11 +13,10 @@ import {
   Download,
   Upload,
   Trash2,
-  Copy,
   Clock,
   CheckCircle,
-  FileText,
-  Plus,
+  AlertTriangle,
+  X,
 } from 'lucide-react';
 import { calculateAll } from '../utils/calculations';
 
@@ -43,7 +44,6 @@ export const ProjectManagerModal: React.FC<Props> = ({
   isOpen,
   onClose,
   currentState,
-  currentResults,
   onLoadProject,
   lang,
 }) => {
@@ -58,7 +58,8 @@ export const ProjectManagerModal: React.FC<Props> = ({
   const [projectDesc, setProjectDesc] = useState(currentState.metadata.notes || '');
   const [activeTab, setActiveTab] = useState<'save' | 'load'>('load');
   const [searchQuery, setSearchQuery] = useState('');
-  const [saveSuccessMsg, setSaveSuccessMsg] = useState('');
+  const [statusBanner, setStatusBanner] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   const isFa = lang === 'fa';
   const t = TRANSLATIONS[lang];
@@ -82,7 +83,8 @@ export const ProjectManagerModal: React.FC<Props> = ({
       setConsultant(currentState.metadata.consultant || '');
       setCalcDate(currentState.metadata.date || new Date().toLocaleDateString(isFa ? 'fa-IR' : 'en-US'));
       setProjectDesc(currentState.metadata.notes || '');
-      setSaveSuccessMsg('');
+      setStatusBanner(null);
+      setPendingDeleteId(null);
     }
   }, [isOpen, currentState, isFa]);
 
@@ -95,13 +97,8 @@ export const ProjectManagerModal: React.FC<Props> = ({
     }
   };
 
-  const handleSaveCurrent = () => {
-    if (!projectName.trim()) {
-      alert(isFa ? 'لطفاً نام پروژه را وارد نمایید.' : 'Please enter a project name.');
-      return;
-    }
-
-    const updatedState: DesignState = {
+  const buildUpdatedState = (): DesignState =>
+    normalizeDesignState({
       ...currentState,
       metadata: {
         ...currentState.metadata,
@@ -114,8 +111,18 @@ export const ProjectManagerModal: React.FC<Props> = ({
         date: calcDate.trim(),
         notes: projectDesc.trim(),
       },
-    };
+    });
 
+  const handleSaveCurrent = (alsoDownloadSnda = false) => {
+    if (!projectName.trim()) {
+      setStatusBanner({
+        type: 'error',
+        msg: isFa ? 'لطفاً نام پروژه / سناریو را وارد نمایید.' : 'Please enter a project / scenario name.',
+      });
+      return;
+    }
+
+    const updatedState = buildUpdatedState();
     const newRecord: SavedProjectRecord = {
       id: 'proj_' + Date.now(),
       name: projectName.trim(),
@@ -127,79 +134,82 @@ export const ProjectManagerModal: React.FC<Props> = ({
 
     const updated = [newRecord, ...projects];
     saveProjectsToStorage(updated);
-    setSaveSuccessMsg(isFa ? 'پروژه و مشخصات شناسنامه با موفقیت ذخیره شد!' : 'Project and metadata saved successfully!');
-    setTimeout(() => {
-      setSaveSuccessMsg('');
-      setActiveTab('load');
-    }, 1200);
-  };
 
-  const handleDelete = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (confirm(isFa ? 'آیا از حذف این پروژه اطمینان دارید؟' : 'Are you sure you want to delete this project?')) {
-      const updated = projects.filter((p) => p.id !== id);
-      saveProjectsToStorage(updated);
+    let savedFileMsg = '';
+    if (alsoDownloadSnda) {
+      const fileName = downloadSndaFile(updatedState, {
+        fileName: projectName.trim(),
+        name: projectName.trim(),
+        description: projectDesc.trim(),
+        lang,
+      });
+      savedFileMsg = isFa ? ` و فایل ${fileName} دانلود شد` : ` & downloaded ${fileName}`;
     }
+
+    setStatusBanner({
+      type: 'success',
+      msg: isFa
+        ? `سناریو و تمامی پارامترهای ورودی در بایگانی ذخیره شد${savedFileMsg}!`
+        : `Scenario and all input parameters saved${savedFileMsg}!`,
+    });
+    setTimeout(() => {
+      setStatusBanner(null);
+      setActiveTab('load');
+    }, 1100);
   };
 
-  const handleExportSingleJson = (record: SavedProjectRecord, e: React.MouseEvent) => {
+  const handleConfirmDelete = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    const payload = {
-      app: 'SoilNailDesignSuite',
-      version: '1.0',
-      fileFormat: 'SNDA',
-      savedAt: record.savedAt,
+    const updated = projects.filter((p) => p.id !== id);
+    saveProjectsToStorage(updated);
+    setPendingDeleteId(null);
+  };
+
+  const handleExportSingleSnda = (record: SavedProjectRecord, e: React.MouseEvent) => {
+    e.stopPropagation();
+    downloadSndaFile(record.state, {
+      fileName: record.name || record.state?.metadata?.projectNumber || 'SoilNail_Scenario',
       name: record.name,
       description: record.description,
-      state: record.state,
-      results: record.results,
-    };
-    const dataStr = 'data:application/octet-stream;charset=utf-8,' + encodeURIComponent(JSON.stringify(payload, null, 2));
-    const a = document.createElement('a');
-    a.href = dataStr;
-    const safeName = (record.name || record.state?.metadata?.projectNumber || 'SoilNail_Project').replace(/\s+/g, '_');
-    a.download = `${safeName}.snda`;
-    a.click();
-    a.remove();
+      lang,
+    });
   };
 
-  const handleImportJsonFile = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportSndaFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const parsed = JSON.parse(e.target?.result as string);
-        if (parsed.state && parsed.state.tendon) {
-          // Record format
-          const newRecord: SavedProjectRecord = {
-            id: 'proj_' + Date.now(),
-            name: parsed.name || parsed.state?.metadata?.projectName || 'Imported Project',
-            description: parsed.description || parsed.state?.metadata?.notes || '',
-            savedAt: new Date().toLocaleString(isFa ? 'fa-IR' : 'en-US'),
-            state: parsed.state,
-            results: parsed.results || calculateAll(parsed.state),
-          };
-          saveProjectsToStorage([newRecord, ...projects]);
-        } else if (parsed.tendon && parsed.pullout) {
-          // Direct DesignState format
-          const newRecord: SavedProjectRecord = {
-            id: 'proj_' + Date.now(),
-            name: parsed.metadata?.projectName || 'Imported Soil Nail Project',
-            description: parsed.metadata?.notes || '',
-            savedAt: new Date().toLocaleString(isFa ? 'fa-IR' : 'en-US'),
-            state: parsed,
-            results: calculateAll(parsed),
-          };
-          saveProjectsToStorage([newRecord, ...projects]);
-        }
-        alert(isFa ? 'پروژه با موفقیت از فایل *.SNDA بارگذاری گردید.' : 'Project successfully imported from *.SNDA file.');
-      } catch (err) {
-        alert(isFa ? 'خطا در بارگذاری فایل *.SNDA.' : 'Failed to import *.SNDA project.');
-      }
-    };
-    reader.readAsText(file);
     if (event.target) event.target.value = '';
+    if (!file) return;
+
+    try {
+      const parsed = await parseSndaFile(file, lang);
+      const newRecord: SavedProjectRecord = {
+        id: 'proj_' + Date.now(),
+        name: parsed.name,
+        description: parsed.description,
+        savedAt: new Date().toLocaleString(isFa ? 'fa-IR' : 'en-US'),
+        state: parsed.state,
+        results: parsed.results,
+      };
+      saveProjectsToStorage([newRecord, ...projects]);
+      onLoadProject(parsed.state);
+      setActiveTab('load');
+      setStatusBanner({
+        type: 'success',
+        msg: isFa
+          ? `سناریو «${parsed.name}» از فایل ${parsed.fileName} با تمام پارامترها فراخوانی و بارگذاری شد.`
+          : `Scenario "${parsed.name}" imported & loaded from ${parsed.fileName} with all parameters.`,
+      });
+    } catch (err) {
+      setStatusBanner({
+        type: 'error',
+        msg:
+          err instanceof Error
+            ? err.message
+            : isFa
+            ? 'فقط فایل‌های سناریو با پسوند *.snda مجاز هستند.'
+            : 'Only *.snda scenario files are allowed.',
+      });
+    }
   };
 
   if (!isOpen) return null;
@@ -212,14 +222,19 @@ export const ProjectManagerModal: React.FC<Props> = ({
   );
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden border border-slate-300">
+    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-3 sm:p-4">
+      <div
+        dir={isFa ? 'rtl' : 'ltr'}
+        className={`bg-slate-900 rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden border border-slate-700 text-slate-100 ${
+          isFa ? 'text-right' : 'text-left'
+        }`}
+      >
         {/* Header */}
-        <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
+        <div className="px-6 py-4 bg-slate-950 text-white flex items-center justify-between border-b border-slate-800">
           <div className="flex items-center gap-2.5">
-            <FolderOpen className="w-5 h-5 text-amber-400" />
+            <FolderOpen className="w-5 h-5 text-amber-400 shrink-0" />
             <div>
-              <h2 className="text-base font-bold">
+              <h2 className="text-sm sm:text-base font-bold text-slate-100">
                 {isFa ? 'مدیریت و بایگانی پروژه‌های طراحی نیلینگ (*.SNDA)' : 'Soil Nail Project Archive & Manager (*.SNDA)'}
               </h2>
               <p className="text-xs text-slate-400">
@@ -227,20 +242,28 @@ export const ProjectManagerModal: React.FC<Props> = ({
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-white text-2xl font-bold">
-            &times;
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-8 h-8 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center transition cursor-pointer"
+          >
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Action Tabs */}
-        <div className="px-6 bg-slate-100 border-b border-slate-200 flex items-center justify-between">
+        <div className="px-6 bg-slate-950/50 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2">
           <div className="flex gap-4 text-xs font-semibold">
             <button
-              onClick={() => setActiveTab('load')}
-              className={`py-3 border-b-2 transition-colors flex items-center gap-1.5 ${
+              type="button"
+              onClick={() => {
+                setActiveTab('load');
+                setStatusBanner(null);
+              }}
+              className={`py-3 border-b-2 transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
                 activeTab === 'load'
-                  ? 'border-blue-600 text-blue-600 font-bold'
-                  : 'border-transparent text-slate-600 hover:text-slate-900'
+                  ? 'border-sky-400 text-sky-300 font-bold'
+                  : 'border-transparent text-slate-400 hover:text-slate-200'
               }`}
             >
               <FolderOpen className="w-3.5 h-3.5" />
@@ -248,11 +271,15 @@ export const ProjectManagerModal: React.FC<Props> = ({
             </button>
 
             <button
-              onClick={() => setActiveTab('save')}
-              className={`py-3 border-b-2 transition-colors flex items-center gap-1.5 ${
+              type="button"
+              onClick={() => {
+                setActiveTab('save');
+                setStatusBanner(null);
+              }}
+              className={`py-3 border-b-2 transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
                 activeTab === 'save'
-                  ? 'border-blue-600 text-blue-600 font-bold'
-                  : 'border-transparent text-slate-600 hover:text-slate-900'
+                  ? 'border-sky-400 text-sky-300 font-bold'
+                  : 'border-transparent text-slate-400 hover:text-slate-200'
               }`}
             >
               <Save className="w-3.5 h-3.5" />
@@ -260,20 +287,37 @@ export const ProjectManagerModal: React.FC<Props> = ({
             </button>
           </div>
 
-          <label className="cursor-pointer text-xs font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1 py-2">
+          <label className="cursor-pointer text-xs font-semibold text-amber-300 hover:text-amber-200 flex items-center gap-1.5 py-2 whitespace-nowrap">
             <Upload className="w-3.5 h-3.5" />
-            <span>{isFa ? 'ورود فایل (*.SNDA)' : 'Import (*.SNDA)'}</span>
-            <input type="file" accept=".snda,.json" onChange={handleImportJsonFile} className="hidden" />
+            <span>{isFa ? 'فراخوانی سناریو (*.SNDA)' : 'Import Scenario (*.SNDA)'}</span>
+            <input type="file" accept=".snda" onChange={handleImportSndaFile} className="hidden" />
           </label>
         </div>
 
         {/* Tab Content */}
-        <div className="p-6 overflow-y-auto flex-1">
+        <div className="p-6 overflow-y-auto flex-1 space-y-4">
+          {statusBanner && (
+            <div
+              className={`p-3 rounded-xl text-xs font-bold flex items-center gap-2 border ${
+                statusBanner.type === 'success'
+                  ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/35'
+                  : 'bg-rose-500/15 text-rose-300 border-rose-500/35'
+              }`}
+            >
+              {statusBanner.type === 'success' ? (
+                <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+              ) : (
+                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+              )}
+              <span>{statusBanner.msg}</span>
+            </div>
+          )}
+
           {activeTab === 'save' ? (
             <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                     {isFa ? 'نام و عنوان پروژه:' : 'Project Name:'} *
                   </label>
                   <input
@@ -281,12 +325,12 @@ export const ProjectManagerModal: React.FC<Props> = ({
                     value={projectName}
                     onChange={(e) => setProjectName(e.target.value)}
                     placeholder={isFa ? 'مثال: پایدارسازی ترانشه شمالی فاز ۲' : 'e.g. North Trench Excavation'}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-slate-700 bg-slate-950 text-slate-100 rounded-xl text-xs font-semibold focus:outline-none focus:border-sky-500 placeholder:text-slate-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                     {isFa ? 'شماره مدرک / پروژه:' : 'Doc / Project No:'}
                   </label>
                   <input
@@ -294,14 +338,14 @@ export const ProjectManagerModal: React.FC<Props> = ({
                     value={projectNumber}
                     onChange={(e) => setProjectNumber(e.target.value)}
                     placeholder="CALC-SN-01"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-mono focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-slate-700 bg-slate-950 text-slate-100 rounded-xl text-xs font-mono focus:outline-none focus:border-sky-500 placeholder:text-slate-500"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                     {isFa ? 'کارفرما:' : 'Client:'}
                   </label>
                   <input
@@ -309,12 +353,12 @@ export const ProjectManagerModal: React.FC<Props> = ({
                     value={client}
                     onChange={(e) => setClient(e.target.value)}
                     placeholder={isFa ? 'نام کارفرما' : 'Client Name'}
-                    className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-slate-700 bg-slate-950 text-slate-100 rounded-xl text-xs focus:outline-none focus:border-sky-500 placeholder:text-slate-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                     {isFa ? 'مهندس محاسب:' : 'Designer:'}
                   </label>
                   <input
@@ -322,12 +366,12 @@ export const ProjectManagerModal: React.FC<Props> = ({
                     value={designer}
                     onChange={(e) => setDesigner(e.target.value)}
                     placeholder={isFa ? 'نام محاسب' : 'Designer Name'}
-                    className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-slate-700 bg-slate-950 text-slate-100 rounded-xl text-xs focus:outline-none focus:border-sky-500 placeholder:text-slate-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                     {isFa ? 'کنترل‌کننده فنی:' : 'Checker:'}
                   </label>
                   <input
@@ -335,13 +379,13 @@ export const ProjectManagerModal: React.FC<Props> = ({
                     value={checker}
                     onChange={(e) => setChecker(e.target.value)}
                     placeholder={isFa ? 'نام کنترل‌کننده' : 'Checker Name'}
-                    className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-slate-700 bg-slate-950 text-slate-100 rounded-xl text-xs focus:outline-none focus:border-sky-500 placeholder:text-slate-500"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                   {isFa ? 'توضیحات، فرضیات و یادداشت‌ها:' : 'Description & Notes:'}
                 </label>
                 <textarea
@@ -349,37 +393,45 @@ export const ProjectManagerModal: React.FC<Props> = ({
                   value={projectDesc}
                   onChange={(e) => setProjectDesc(e.target.value)}
                   placeholder={isFa ? 'توضیحات درباره ژئوتکنیک، بارگذاری و شرایط ساختگاه...' : 'Geotechnical notes...'}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-slate-700 bg-slate-950 text-slate-100 rounded-xl text-xs focus:outline-none focus:border-sky-500 placeholder:text-slate-500"
                 />
               </div>
 
               {/* Snapshot of what will be saved */}
-              <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 text-xs space-y-1.5 text-slate-600">
-                <div className="font-bold text-slate-800">{isFa ? 'خلاصه پارامترهای فنی نیلینگ که در فایل SNDA ذخیره می‌شوند:' : 'Technical Snapshot to be Saved in SNDA:'}</div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px] font-mono" dir="ltr">
+              <div className="bg-slate-950/70 rounded-xl p-3.5 border border-slate-800 text-xs space-y-2 text-slate-300">
+                <div className="font-bold text-slate-100">
+                  {isFa
+                    ? 'خلاصه پارامترهای کامل سیستم و طراحی که در فایل *.SNDA ذخیره می‌شوند:'
+                    : 'Complete System & Design Input Snapshot Saved in *.SNDA:'}
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] font-mono text-sky-300 tabular-nums" dir="ltr">
+                  <div>H = {(currentState.system || DEFAULT_SYSTEM_SPECS).wallHeight} m</div>
+                  <div>L = {(currentState.system || DEFAULT_SYSTEM_SPECS).nailLength} m</div>
+                  <div>Grid = {currentState.facing.Sh}×{currentState.facing.Sv} m</div>
+                  <div>Life = {currentState.corrosion.designLife}</div>
                   <div>Tmax = {currentState.tendon.Tmax} kN</div>
                   <div>Tendon = φ{currentState.tendon.barDiameter} mm</div>
                   <div>Hole = {currentState.pullout.drillholeDiameter} mm</div>
-                  <div>Plate = {currentState.plate.plateWidth}×{currentState.plate.plateWidth} cm</div>
-                  <div>Temp Facing = {currentState.facing.tempThickness} mm</div>
                   <div>Protection = {currentState.corrosion.selectedClass}</div>
                 </div>
               </div>
 
-              {saveSuccessMsg && (
-                <div className="p-2.5 rounded-lg bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-emerald-600" />
-                  <span>{saveSuccessMsg}</span>
-                </div>
-              )}
-
-              <div className="pt-2 flex justify-end gap-2">
+              <div className="pt-2 flex flex-wrap justify-end gap-2">
                 <button
-                  onClick={handleSaveCurrent}
-                  className="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm"
+                  type="button"
+                  onClick={() => handleSaveCurrent(false)}
+                  className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition"
                 >
-                  <Save className="w-4 h-4" />
-                  <span>{isFa ? 'ذخیره در آرشیو (*.SNDA)' : 'Save to Archive (*.SNDA)'}</span>
+                  <Save className="w-4 h-4 text-sky-400" />
+                  <span>{isFa ? 'ذخیره در بایگانی برنامه' : 'Save to App Archive'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSaveCurrent(true)}
+                  className="px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm cursor-pointer transition"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>{isFa ? 'ذخیره و دانلود فایل (*.SNDA)' : 'Save & Download (*.SNDA)'}</span>
                 </button>
               </div>
             </div>
@@ -391,17 +443,18 @@ export const ProjectManagerModal: React.FC<Props> = ({
                   placeholder={isFa ? 'جستجو در نام و توضیحات پروژه‌ها...' : 'Search projects...'}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs mb-3"
+                  className="w-full px-3 py-2 border border-slate-700 bg-slate-950 text-slate-100 rounded-xl text-xs mb-3 placeholder:text-slate-500 focus:outline-none focus:border-sky-500"
                 />
               )}
 
               {filteredProjects.length === 0 ? (
-                <div className="text-center py-12 text-slate-400 text-xs space-y-2">
-                  <FolderOpen className="w-10 h-10 mx-auto text-slate-300" />
+                <div className="text-center py-12 text-slate-400 text-xs space-y-2.5">
+                  <FolderOpen className="w-10 h-10 mx-auto text-slate-600" />
                   <p>{isFa ? 'هیچ پروژه‌ای در حافظه ذخیره نشده است.' : 'No saved projects found in archive.'}</p>
                   <button
+                    type="button"
                     onClick={() => setActiveTab('save')}
-                    className="text-blue-600 hover:underline font-semibold"
+                    className="text-sky-400 hover:underline font-semibold cursor-pointer"
                   >
                     {isFa ? 'ذخیره محاسبات جاری به عنوان پروژه جدید' : 'Save current design project'}
                   </button>
@@ -409,35 +462,38 @@ export const ProjectManagerModal: React.FC<Props> = ({
               ) : (
                 filteredProjects.map((p) => {
                   const isPass = p.results?.isOverallPassed;
+                  const isConfirmingDelete = pendingDeleteId === p.id;
                   return (
                     <div
                       key={p.id}
                       onClick={() => {
-                        onLoadProject(p.state);
+                        onLoadProject(normalizeDesignState(p.state));
                         onClose();
                       }}
-                      className="p-3.5 rounded-xl border border-slate-200 bg-white hover:border-blue-400 hover:shadow-sm cursor-pointer transition flex items-center justify-between gap-3 group"
+                      className="p-3.5 rounded-xl border border-slate-800 bg-slate-950/70 hover:border-sky-500/50 hover:bg-slate-900 cursor-pointer transition flex items-center justify-between gap-3 group"
                     >
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-xs text-slate-800 group-hover:text-blue-600">
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-bold text-xs text-slate-100 group-hover:text-sky-300 truncate">
                             {p.name}
                           </span>
                           {p.state?.metadata?.projectNumber && (
-                            <span className="text-[10px] text-slate-500 font-mono bg-slate-100 px-1.5 py-0.5 rounded">
+                            <span className="text-[10px] text-slate-300 font-mono bg-slate-800 border border-slate-700 px-1.5 py-0.5 rounded">
                               {p.state.metadata.projectNumber}
                             </span>
                           )}
                           <span
-                            className={`text-[10px] px-1.5 py-0.2 rounded font-bold ${
-                              isPass ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
+                            className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${
+                              isPass
+                                ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/35'
+                                : 'bg-rose-500/15 text-rose-300 border-rose-500/35'
                             }`}
                           >
                             {isPass ? 'PASS' : 'FAIL'}
                           </span>
                         </div>
-                        {p.description && <p className="text-[11px] text-slate-500 line-clamp-1">{p.description}</p>}
-                        <div className="flex items-center gap-3 text-[10px] text-slate-400 font-mono" dir="ltr">
+                        {p.description && <p className="text-[11px] text-slate-400 line-clamp-1">{p.description}</p>}
+                        <div className="flex flex-wrap items-center gap-3 text-[10px] text-slate-400 font-mono tabular-nums" dir="ltr">
                           <span className="flex items-center gap-1">
                             <Clock className="w-3 h-3" />
                             {p.savedAt}
@@ -450,19 +506,34 @@ export const ProjectManagerModal: React.FC<Props> = ({
 
                       <div className="flex items-center gap-1.5 shrink-0">
                         <button
-                          onClick={(e) => handleExportSingleJson(p, e)}
+                          type="button"
+                          onClick={(e) => handleExportSingleSnda(p, e)}
                           title="Download *.SNDA File"
-                          className="p-1.5 text-slate-400 hover:text-blue-600 rounded-md hover:bg-slate-100"
+                          className="p-2 text-slate-400 hover:text-sky-300 rounded-lg hover:bg-slate-800 cursor-pointer transition"
                         >
                           <Download className="w-3.5 h-3.5" />
                         </button>
-                        <button
-                          onClick={(e) => handleDelete(p.id, e)}
-                          title="Delete Project"
-                          className="p-1.5 text-slate-400 hover:text-rose-600 rounded-md hover:bg-slate-100"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        {isConfirmingDelete ? (
+                          <button
+                            type="button"
+                            onClick={(e) => handleConfirmDelete(p.id, e)}
+                            className="px-2 py-1 text-[10px] font-bold bg-rose-600 hover:bg-rose-500 text-white rounded-lg cursor-pointer transition"
+                          >
+                            {isFa ? 'تأیید حذف' : 'Confirm'}
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPendingDeleteId(p.id);
+                            }}
+                            title="Delete Project"
+                            className="p-2 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-800 cursor-pointer transition"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
@@ -473,8 +544,12 @@ export const ProjectManagerModal: React.FC<Props> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3 bg-slate-50 border-t border-slate-200 flex justify-end">
-          <button onClick={onClose} className="px-4 py-1.5 rounded-lg bg-slate-200 text-slate-700 font-semibold text-xs">
+        <div className="px-6 py-3 bg-slate-950 border-t border-slate-800 flex justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs cursor-pointer transition"
+          >
             {t.close}
           </button>
         </div>

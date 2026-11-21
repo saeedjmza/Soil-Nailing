@@ -1,7 +1,36 @@
 /**
  * AASHTO LRFD (9th Ed, 2020) & FHWA-NHI-14-007 (GEC 7) Reference Tables & Presets
  */
-import { DesignState } from '../types/nailing';
+import { DesignState, SystemSpecsInputs } from '../types/nailing';
+
+export const DEFAULT_SYSTEM_SPECS: SystemSpecsInputs = {
+  wallHeight: 12.0,
+  wallBatterDeg: 0,
+  backslopeDeg: 0,
+  nailInclinationDeg: 15,
+  nailLength: 10.0,
+  surchargeKpa: 20,
+  soilUnitWeight: 19.0,
+  soilCohesion: 15,
+  soilFrictionDeg: 32,
+};
+
+export interface SoilPresetOption {
+  id: string;
+  labelFa: string;
+  labelEn: string;
+  gamma: number;
+  cohesion: number;
+  friction: number;
+}
+
+export const PRELIMINARY_SOIL_PRESETS: SoilPresetOption[] = [
+  { id: 'loose_sand', labelFa: 'ماسه سست / متوسط', labelEn: 'Loose-Med Sand', gamma: 18.0, cohesion: 2, friction: 30 },
+  { id: 'dense_sand', labelFa: 'ماسه متراکم و شن', labelEn: 'Dense Sand/Gravel', gamma: 20.0, cohesion: 5, friction: 36 },
+  { id: 'silty_clay', labelFa: 'رس سیلتی متوسط', labelEn: 'Med Silty Clay', gamma: 18.5, cohesion: 18, friction: 26 },
+  { id: 'stiff_clay', labelFa: 'رس سفت / سخت', labelEn: 'Stiff Clay', gamma: 19.5, cohesion: 30, friction: 24 },
+  { id: 'alluvial', labelFa: 'آبرفت متراکم (شن و رس)', labelEn: 'Dense Alluvium', gamma: 19.5, cohesion: 20, friction: 34 },
+];
 
 export interface PresumptiveBondEntry {
   category: 'coarse' | 'fine' | 'rock';
@@ -223,14 +252,25 @@ export const STANDARD_MESH_OPTIONS: StandardMeshOption[] = [
 // Presets
 export const SAMPLE_PROJECT_FROM_PDF: DesignState = {
   metadata: {
-    projectName: 'طراحی سیستم میخ‌کوبی ترانشه‌های تونل اتصال (نمونه گزارش)',
+    projectName: 'طراحی سیستم میخ‌کوبی ترانشه و دیواره (نمونه استاندارد)',
     projectNumber: 'CALC-SN-1405-01',
-    client: 'کارفرمای محترم پروژه تونل',
-    consultant: 'مهندسین مشاور راه و ابنیه',
+    client: 'کارفرمای محترم پروژه',
+    consultant: 'مهندسین مشاور ژئوتکنیک و سازه',
     designer: 'کارشناس ژئوتکنیک',
     checker: 'مدیر فنی ژئوتکنیک',
     date: '1405/07/11',
     notes: 'طراحی بر مبنای AASHTO LRFD (US-9th Ed, 2020) و FHWA-NHI-14-007 (GEC 7)',
+  },
+  system: {
+    wallHeight: 12.0,
+    wallBatterDeg: 0,
+    backslopeDeg: 0,
+    nailInclinationDeg: 15,
+    nailLength: 10.5,
+    surchargeKpa: 20,
+    soilUnitWeight: 19.0,
+    soilCohesion: 15,
+    soilFrictionDeg: 32,
   },
   tendon: {
     Tmax: 178, // kN
@@ -323,14 +363,25 @@ export const SAMPLE_PROJECT_FROM_PDF: DesignState = {
 
 export const DEEP_EXCAVATION_PRESET: DesignState = {
   metadata: {
-    projectName: 'گودبرداری عمیق شهری - دیواره خیابان ولیعصر',
-    projectNumber: 'EXCAV-2026-VALI',
-    client: 'شرکت سرمایه‌گذاری مسکن',
+    projectName: 'گودبرداری عمیق شهری (پایدارسازی موقت ۱۸ متری)',
+    projectNumber: 'EXCAV-2026-01',
+    client: 'کارفرمای پروژه',
     consultant: 'مهندسین مشاور خاک و پایه',
-    designer: 'م. احمدی',
-    checker: 'د. کمالی',
+    designer: 'مهندس محاسب ژئوتکنیک',
+    checker: 'مدیر کنترل فنی',
     date: '1405/01/20',
-    notes: 'پروژه موقت پایدارسازی ترانشه گودبرداری به عمق 18 متر با سیستم میخ‌کوبی ترکیبی',
+    notes: 'پروژه موقت پایدارسازی ترانشه گودبرداری به عمق ۱۸ متر با سیستم میخ‌کوبی (معاف از حفاظت خوردگی دائم)',
+  },
+  system: {
+    wallHeight: 18.0,
+    wallBatterDeg: 5,
+    backslopeDeg: 0,
+    nailInclinationDeg: 15,
+    nailLength: 14.0,
+    surchargeKpa: 20,
+    soilUnitWeight: 19.5,
+    soilCohesion: 20,
+    soilFrictionDeg: 34,
   },
   tendon: {
     Tmax: 145,
@@ -409,7 +460,7 @@ export const DEEP_EXCAVATION_PRESET: DesignState = {
       organicContent: 0.2,
     },
     designLife: 'temporary',
-    selectedClass: 'ClassB',
+    selectedClass: 'None',
     ductMaterial: 'PVC',
     ductWallThickness: 1.0,
     ductInsideDiameter: 40,
@@ -420,3 +471,52 @@ export const DEEP_EXCAVATION_PRESET: DesignState = {
     groutCoverClassB: 25.4,
   },
 };
+
+export function normalizeDesignState(raw: Partial<DesignState> | DesignState): DesignState {
+  const base = SAMPLE_PROJECT_FROM_PDF;
+  const rawFacing = raw.facing || base.facing;
+  const rawCorrosion = raw.corrosion || base.corrosion;
+
+  return {
+    metadata: {
+      ...base.metadata,
+      ...(raw.metadata || {}),
+    },
+    system: {
+      ...DEFAULT_SYSTEM_SPECS,
+      ...(raw.system || {}),
+    },
+    tendon: {
+      ...base.tendon,
+      ...(raw.tendon || {}),
+    },
+    pullout: {
+      ...base.pullout,
+      ...(raw.pullout || {}),
+    },
+    plate: {
+      ...base.plate,
+      ...(raw.plate || {}),
+    },
+    facing: {
+      ...base.facing,
+      ...rawFacing,
+      tempMesh: {
+        ...base.facing.tempMesh,
+        ...(rawFacing.tempMesh || {}),
+      },
+      permMesh: {
+        ...base.facing.permMesh,
+        ...(rawFacing.permMesh || {}),
+      },
+    },
+    corrosion: {
+      ...base.corrosion,
+      ...rawCorrosion,
+      soilTests: {
+        ...base.corrosion.soilTests,
+        ...(rawCorrosion.soilTests || {}),
+      },
+    },
+  };
+}
